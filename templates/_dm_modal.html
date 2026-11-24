@@ -1,0 +1,130 @@
+<dialog id="dmDlg" class="dm-dlg" aria-labelledby="dmTitle">
+  <div class="dm-head"><b id="dmTitle">{{ icon('send') }}私信助手</b><button type="button" class="dm-x" id="dmClose" aria-label="关闭">×</button></div>
+  <div class="dm-body">
+    <div class="dm-lead"><div class="dm-who" id="dmWho"></div><p id="dmText"></p></div>
+    <p class="dm-nolink" id="dmNoLink" hidden></p>
+    <p class="dm-nokey" id="dmNoKey" hidden>先在「我的账户」里填你自己的阿里云 API Key，才能生成话术。<a href="/account">去填写</a></p>
+    <div class="dm-field">
+      <label for="dmProduct">我的业务介绍 <small>写得越具体越好，AI 只会用你写的信息，不会编造价格和案例</small></label>
+      <textarea id="dmProduct" rows="3" maxlength="600" placeholder="例如：长沙本地家用充电桩安装团队，免费上门勘测，协助报装，质保服务。"></textarea>
+    </div>
+    <div class="dm-field">
+      <div class="seg" id="dmTone">
+        <label class="seg-item"><input type="radio" name="dmtone" value="friendly" checked><span><b>亲切自然</b></span></label>
+        <label class="seg-item"><input type="radio" name="dmtone" value="professional"><span><b>专业靠谱</b></span></label>
+        <label class="seg-item"><input type="radio" name="dmtone" value="brief"><span><b>简短直接</b></span></label>
+      </div>
+    </div>
+    <div class="submit-row"><button type="button" class="btn btn-primary" id="dmGen">{{ icon('spark') }}<span>生成话术</span></button><span class="form-msg" id="dmMsg"></span></div>
+    <div id="dmOut" hidden>
+      <div class="dm-field">
+        <div class="dm-label"><span>① 公开回复 <small>发在他评论下面，比私信更不容易被限制</small></span><button type="button" class="btn-sm" data-copy="dmPub">{{ icon('copy') }}复制</button></div>
+        <textarea id="dmPub" rows="2" maxlength="500"></textarea>
+      </div>
+      <div class="dm-field">
+        <div class="dm-label"><span>② 私信开场白 <small>对方回复后再继续聊</small></span><button type="button" class="btn-sm" data-copy="dmPriv">{{ icon('copy') }}复制</button></div>
+        <textarea id="dmPriv" rows="4" maxlength="500"></textarea>
+      </div>
+      <div class="dm-actions">
+        <a class="btn-sm" id="dmProfile" target="_blank" rel="noopener">{{ icon('external') }}打开对方主页</a>
+        <a class="btn-sm" id="dmWork" target="_blank" rel="noopener">{{ icon('external') }}打开原作品</a>
+        <button type="button" class="btn-sm accent" id="dmSent">{{ icon('check') }}标记为已私信</button>
+      </div>
+    </div>
+    <p class="dm-tip">话术只供你复制，<b>不会自动发送</b>，请你自己在平台上发。发之前看一眼、按实际情况改改；一天别发太多，同样的话别反复发。</p>
+  </div>
+</dialog>
+<div class="toast" id="dmToast"></div>
+<script>
+const DM = {ready: {{ 'true' if me.ai_api_key else 'false' }}, product: {{ (me.product_info or '')|tojson }}, btn: null};
+const dm$ = id => document.getElementById(id);
+function dmToast(text, ok) {
+  const t = dm$('dmToast'); t.textContent = text; t.className = 'toast show ' + (ok ? 'ok' : 'err');
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', 2600);
+}
+function dmShow(pub, priv) {
+  dm$('dmPub').value = pub || ''; dm$('dmPriv').value = priv || '';
+  dm$('dmOut').hidden = !(pub || priv);
+  dm$('dmGen').querySelector('span').textContent = (pub || priv) ? '重新生成' : '生成话术';
+}
+function openDm(btn) {
+  DM.btn = btn;
+  const d = btn.dataset;
+  dm$('dmWho').textContent = `${d.pf} · ${d.nick}`;
+  dm$('dmText').textContent = d.text;
+  dm$('dmProduct').value = DM.product;
+  dm$('dmNoKey').hidden = DM.ready; dm$('dmGen').disabled = !DM.ready;
+  dm$('dmMsg').textContent = ''; dm$('dmMsg').className = 'form-msg';
+  dmShow(d.pub, d.priv);
+  const link = dm$('dmProfile'), work = dm$('dmWork');
+  link.hidden = !d.link; link.href = d.link || '#';
+  work.hidden = !d.url; work.href = d.url || '#';
+  const nl = dm$('dmNoLink');
+  nl.hidden = !!d.link;
+  nl.textContent = d.link ? '' : `${d.pf}没有对方的主页链接：` + (d.url ? `点「打开原作品」，在评论区按昵称「${d.nick}」找到这条评论，公开回复它（对方会收到提醒）。` : `请到${d.pf}里打开这个作品，在评论区按昵称「${d.nick}」找到这条评论，公开回复它。`);
+  dm$('dmDlg').showModal();
+}
+async function dmRequest(btn, product, tone) {
+  const d = await postJSON(`/api/leads/${btn.dataset.id}/dm`, {product_info: product, tone})
+    .catch(() => ({ok: false, message: '网络出错，请重试'}));
+  if (d.ok) {
+    btn.dataset.pub = d.public; btn.dataset.priv = d.private;
+    btn.classList.add('has'); btn.querySelector('span').textContent = '话术';
+    DM.product = product;
+  }
+  return d;
+}
+dm$('dmGen').onclick = async () => {
+  const btn = DM.btn, msg = dm$('dmMsg'), gen = dm$('dmGen');
+  gen.disabled = true; msg.className = 'form-msg'; msg.textContent = 'AI 正在写…';
+  const d = await dmRequest(btn, dm$('dmProduct').value, document.querySelector('input[name=dmtone]:checked').value);
+  gen.disabled = false;
+  if (d.ok) { msg.textContent = ''; dmShow(d.public, d.private); }
+  else { msg.className = 'form-msg err'; msg.textContent = d.message || '生成失败，请重试'; }
+};
+['dmPub', 'dmPriv'].forEach(id => dm$(id).addEventListener('change', e => {
+  const btn = DM.btn; if (!btn) return;
+  btn.dataset[id === 'dmPub' ? 'pub' : 'priv'] = e.target.value;
+  updateLead(btn.dataset.id, id === 'dmPub' ? 'dm_public' : 'dm_private', e.target.value);
+}));
+document.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => {
+  const ta = dm$(b.dataset.copy);
+  try { await navigator.clipboard.writeText(ta.value); }
+  catch (e) { ta.select(); document.execCommand('copy'); }
+  dmToast('已复制，去平台粘贴发送吧', true);
+});
+dm$('dmSent').onclick = async () => {
+  const id = DM.btn.dataset.id;
+  await updateLead(id, 'status', '已私信');
+  const sel = document.querySelector(`tr[data-lead="${id}"] .status-select`);
+  if (sel) { sel.value = '已私信'; sel.className = 'status-select st-已私信'; }
+  dmToast('已标记为「已私信」', true);
+  dm$('dmDlg').close();
+};
+dm$('dmClose').onclick = () => dm$('dmDlg').close();
+dm$('dmDlg').addEventListener('click', e => { if (e.target === dm$('dmDlg')) dm$('dmDlg').close(); });
+
+// 批量：给本页还没有话术的线索各生成一条（最多 30 条，同时 3 个）
+async function dmBatch(trigger) {
+  const todo = [...document.querySelectorAll('.dm-btn:not(.has)')].slice(0, 30);
+  if (!DM.ready) { dmToast('请先在「我的账户」里填阿里云 API Key', false); return; }
+  if (!todo.length) { dmToast('本页的线索都已经有话术了', true); return; }
+  const product = DM.product || (prompt('先写一下你的业务介绍（至少 10 个字），AI 只会用你写的信息：') || '').trim();
+  if (product.length < 10) { dmToast('业务介绍太短，没有生成', false); return; }
+  if (!confirm(`给本页 ${todo.length} 条线索生成话术？用的是你自己的阿里云额度，每条大约几分钱。`)) return;
+  trigger.disabled = true;
+  const total = todo.length; let done = 0, failed = 0, stop = '';
+  const label = trigger.querySelector('span');
+  const worker = async () => {
+    while (todo.length && !stop) {
+      const btn = todo.shift();
+      const d = await dmRequest(btn, product, 'friendly');
+      if (!d.ok) { failed++; if (d.need_key) stop = d.message; }
+      done++; label.textContent = `生成中 ${done} / ${total}`;
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  trigger.disabled = false; label.textContent = '批量生成话术';
+  dmToast(stop || `完成：成功 ${done - failed} 条` + (failed ? `，失败 ${failed} 条（可单独重试）` : '') + '，导出时会一起带上', !failed);
+}
+</script>

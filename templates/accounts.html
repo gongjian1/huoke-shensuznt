@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}对标账号 - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">Benchmark accounts</div>
+    <h1>对标账号</h1>
+    <p class="lead-text">把同行、竞品的主页加进来，系统定时去看他们发了什么、哪条在涨。看到爆款，一键抓它的评论区。</p>
+  </div>
+</header>
+
+<section class="metrics crop metrics-3">
+  <div class="metric">
+    <div class="metric-label"><span>追踪中的账号</span><span class="code">TRACKING</span></div>
+    <div class="metric-num">{{ accounts|selectattr('active')|list|length }}</div>
+    <div class="metric-sub">共 <b>{{ accounts|length }}</b> 个 · 上限 {{ max_accounts }}</div>
+  </div>
+  <div class="metric is-a">
+    <div class="metric-label"><span>近 7 天新作品</span><span class="code">NEW · 7D</span></div>
+    <div class="metric-num">{{ week_new }}</div>
+    <div class="metric-sub">对标账号最近一周发布的</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label"><span>追踪费用</span><span class="code">COST</span></div>
+    <div class="metric-num">{{ '0' if me.is_admin else pts(price) }}</div>
+    <div class="metric-sub">{{ '管理员免费' if me.is_admin else '条额度 / 每次刷新 · 每 12 小时约每月 ' ~ pts(price * 60) ~ ' 条' }}</div>
+  </div>
+</section>
+
+<div class="grid-main" style="margin-bottom:18px">
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">{{ icon('user-plus') }}添加对标账号 <span class="code">ADD</span></div>
+    </div>
+    <div class="panel-body">
+      <div class="field">
+        <div class="field-label"><span class="step">01</span>平台</div>
+        <div class="seg">
+          {% for key, t in TRACKERS.items() %}
+          <label class="seg-item"><input type="radio" name="aPlatform" value="{{ key }}" data-example="{{ t.example }}" {{ 'checked' if loop.first }}>
+            <span><span class="platform platform-{{ key }}">{{ t.label }}</span></span></label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="aText"><span class="step">02</span>主页链接或账号 <small id="aHint"></small></label>
+        <input id="aText" placeholder="粘贴对方主页链接">
+      </div>
+      <div class="grid-2-even" style="margin-bottom:18px">
+        <label class="adv-label">刷新频率
+          <select id="aInterval">{% for h, label in INTERVALS.items() %}<option value="{{ h }}" {{ 'selected' if h == 12 }}>{{ label }}</option>{% endfor %}</select></label>
+        <label class="adv-label">备注（选填）<input id="aNote" maxlength="100" placeholder="比如：本地最大的同行"></label>
+      </div>
+      <div class="submit-row">
+        <button class="btn btn-primary btn-lg" id="aAdd">{{ icon('eye') }}添加并拉取作品</button>
+        <span class="form-msg" id="aMsg"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">{{ icon('trend') }}能看到什么 <span class="code">HOW</span></div></div>
+    <ul class="price-notes" style="border-top:0">
+      <li>对方最近 20 条作品：标题、封面、发布时间、点赞 / 评论 / 播放。</li>
+      <li>每次刷新会算出<b>比上次涨了多少</b>，"涨得最快"排序能直接看出哪条在起量。</li>
+      <li>新发的作品会标 <b>NEW</b>，再也不用一个个点进主页看。</li>
+      <li>看到评论多的作品，点<b>「抓评论」</b>直接把它的评论区变成线索。</li>
+      <li>支持抖音、小红书、快手、B站、微博。视频号接口目前不稳定，暂不支持。</li>
+    </ul>
+  </section>
+</div>
+
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">{{ icon('users') }}我的对标账号 <span class="code">ACCOUNTS</span></div>
+    <span class="panel-meta">{{ accounts|length }} 个</span>
+  </div>
+  <div class="table-wrap">
+  <table class="data-table acct-table">
+    <thead><tr><th>账号</th><th class="r">粉丝</th><th class="r hide-sm">作品</th><th class="hide-sm">刷新频率</th><th>状态</th><th class="r">操作</th></tr></thead>
+    <tbody>
+    {% for a in accounts %}
+    <tr class="{{ 'paused' if not a.active }}">
+      <td class="td-acct">
+        <a class="acct-cell plain-link" href="/accounts/{{ a.id }}">
+          <span class="avatar" data-initial="{{ (a.nickname or '?')[:1] }}">{% if a.avatar %}<img src="{{ imgp(a.avatar) }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}</span>
+          <span><strong>{{ a.nickname or a.account_id }}</strong>{% if a.new_posts %} <span class="badge-new">{{ a.new_posts }} 新</span>{% endif %}
+            <span class="cell-sub"><span class="platform platform-{{ a.platform }}">{{ TRACKERS[a.platform].label }}</span>{% if a.note %} · {{ a.note }}{% endif %}</span></span>
+        </a>
+      </td>
+      <td class="num r hi nw td-fans">{{ wan(a.followers) }}{% if a.followers_prev is not none and a.followers is not none and a.followers != a.followers_prev %}
+        <span class="delta {{ 'up' if a.followers > a.followers_prev else 'down' }}">{{ '+' if a.followers > a.followers_prev }}{{ wan(a.followers - a.followers_prev) }}</span>{% endif %}</td>
+      <td class="num r nw hide-sm">{{ wan(a.posts_count) }}</td>
+      <td class="hide-sm">
+        <select class="status-select" data-interval="{{ a.id }}" aria-label="刷新频率">
+          {% for h, label in INTERVALS.items() %}<option value="{{ h }}" {{ 'selected' if h == a.interval_hours }}>{{ label }}</option>{% endfor %}
+        </select>
+      </td>
+      <td class="nw td-st">
+        {% if a.last_error %}<span class="ust ust-待审核" title="{{ a.last_error }}">{{ a.last_error[:14] }}</span>
+        {% elif a.active %}<span class="ust ust-正常">追踪中</span>
+        {% else %}<span class="ust ust-禁用">已暂停</span>{% endif %}
+        <span class="cell-sub">{{ '上次 ' ~ ago(a.last_checked) if a.last_checked else '' }}{% if a.active and a.next_check %} · 下次 {{ ago(a.next_check) }}{% endif %}</span>
+      </td>
+      <td class="r nw td-act">
+        <button class="btn-sm" data-refresh="{{ a.id }}" title="立即刷新{{ '' if me.is_admin else '（扣 ' ~ pts(price) ~ ' 条额度）' }}">{{ icon('refresh') }}刷新</button>
+        <button class="btn-sm" data-toggle="{{ a.id }}" data-active="{{ a.active }}">{{ icon('pause' if a.active else 'resume') }}{{ '暂停' if a.active else '恢复' }}</button>
+        <button class="btn-sm danger" data-delete="{{ a.id }}" data-name="{{ a.nickname or a.account_id }}" aria-label="删除">{{ icon('trash') }}</button>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="empty">还没有对标账号，从上面添加第一个</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">{{ icon('play') }}对标动态 <span class="code">FEED</span></div>
+    <span class="panel-meta">{{ feed|length }} 条</span>
+  </div>
+  <form class="toolbar" method="get">
+    <div class="seg seg-inline">
+      {% for k, label in [('latest', '最新发布'), ('rising', '涨得最快'), ('comments', '评论最多')] %}
+      <label class="seg-item"><input type="radio" name="sort" value="{{ k }}" {{ 'checked' if f.sort == k }} onchange="this.form.submit()"><span>{{ label }}</span></label>
+      {% endfor %}
+    </div>
+    <select name="platform" onchange="this.form.submit()" aria-label="平台"><option value="">全部平台</option>
+      {% for key, t in TRACKERS.items() %}<option value="{{ key }}" {{ 'selected' if f.platform == key }}>{{ t.label }}</option>{% endfor %}</select>
+    <select name="account" onchange="this.form.submit()" aria-label="账号"><option value="">全部账号</option>
+      {% for a in accounts %}<option value="{{ a.id }}" {{ 'selected' if f.account == a.id|string }}>{{ a.nickname or a.account_id }}</option>{% endfor %}</select>
+  </form>
+  <div class="feed">
+    {% for p in feed %}{% include "_post_card.html" %}{% else %}
+    <p class="empty" style="grid-column:1/-1">还没有作品。添加对标账号后，这里会显示他们最新发的内容。</p>
+    {% endfor %}
+  </div>
+</section>
+<div class="toast" id="toast"></div>
+{% endblock %}
+{% block scripts %}
+{% include "_post_actions.html" %}
+<script>
+const radios = document.querySelectorAll('input[name=aPlatform]');
+const syncHint = () => { const r = document.querySelector('input[name=aPlatform]:checked'); document.getElementById('aHint').textContent = r.dataset.example; };
+radios.forEach(r => r.addEventListener('change', syncHint)); syncHint();
+document.getElementById('aAdd').onclick = async e => {
+  const btn = e.currentTarget, msg = document.getElementById('aMsg');
+  btn.disabled = true; msg.className = 'form-msg'; msg.textContent = '正在识别账号、拉取作品，大约 10 秒…';
+  const d = await postJSON('/api/accounts', {
+    platform: document.querySelector('input[name=aPlatform]:checked').value, text: document.getElementById('aText').value,
+    interval: document.getElementById('aInterval').value, note: document.getElementById('aNote').value,
+  }).catch(() => ({ok: false, message: '网络出错，请重试'}));
+  btn.disabled = false;
+  msg.className = 'form-msg ' + (d.ok ? 'ok' : 'err'); msg.textContent = d.message;
+  if (d.ok) setTimeout(() => location.reload(), 800);
+};
+document.querySelectorAll('[data-refresh]').forEach(b => b.onclick = async () => {
+  b.disabled = true; b.querySelector('.i').classList.add('spin');
+  const d = await postJSON(`/api/accounts/${b.dataset.refresh}/refresh`);
+  toast(d.message, d.ok); if (d.ok) setTimeout(() => location.reload(), 700); else { b.disabled = false; b.querySelector('.i').classList.remove('spin'); }
+});
+document.querySelectorAll('[data-toggle]').forEach(b => b.onclick = async () => {
+  await postJSON(`/api/accounts/${b.dataset.toggle}`, {active: b.dataset.active !== '1'}); location.reload();
+});
+document.querySelectorAll('[data-delete]').forEach(b => b.onclick = async () => {
+  if (!confirm(`删除「${b.dataset.name}」？它的作品数据也会一起删除。`)) return;
+  await postJSON(`/api/accounts/${b.dataset.delete}/delete`); location.reload();
+});
+document.querySelectorAll('[data-interval]').forEach(s => s.onchange = async () => {
+  await postJSON(`/api/accounts/${s.dataset.interval}`, {interval: s.value}); toast('刷新频率已修改', true);
+});
+</script>
+{% endblock %}

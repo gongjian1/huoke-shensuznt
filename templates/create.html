@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}仿写创作 - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">AI Studio / New</div>
+    <h1>仿写创作</h1>
+    <p class="lead-text">拿对标的爆款当参考，让 AI 写出你自己的原创图文，再配上图。只借鉴选题角度和结构，不会照抄原文。</p>
+  </div>
+  <div class="head-actions"><a class="btn" href="/creations">{{ icon('image') }}我的创作</a></div>
+</header>
+
+{% include "_ai_tabs.html" %}
+
+<a class="callout" href="/ai-videos/new{{ ('?video=' ~ args.video|urlencode) if args.video else (('?apost=' ~ args.apost|urlencode) if args.apost else '') }}">
+  <span class="callout-ic">{{ icon('film') }}</span>
+  <span class="callout-text"><b>想做短视频？</b><small>不用先写文案，写一句画面描述就能生成 2～15 秒的视频，也可以拿文案配图当第一帧。</small></span>
+  <span class="callout-go">去做视频 {{ icon('arrow') }}</span>
+</a>
+
+{% if not ai_ready %}
+<div class="flash err">先填一下你自己的阿里云 API Key，才能使用 AI 创作（只需要填一次）。</div>
+{% include "_ai_key_form.html" %}
+{% endif %}
+{% if err %}<div class="flash err">{{ err }}</div>{% endif %}
+
+<div class="grid-main" style="margin-bottom:18px">
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">{{ icon('spark') }}创作设置 <span class="code">BRIEF</span></div>
+    </div>
+    <div class="panel-body">
+      <div class="field">
+        <div class="field-label"><span class="step">01</span>参考内容 <small>{{ '来自你选的作品' if source else '粘贴一条你想仿写的爆款标题或文案' }}</small></div>
+        {% if source %}
+        <div class="src-card">
+          <span class="thumb">
+            <i class="thumb-ph">{{ (source.platform or '参考')[:2] }}</i>
+            {% if source.cover %}<img src="{{ imgp(source.cover) }}" alt="" onerror="this.remove()">{% endif %}
+          </span>
+          <div class="src-card-text">
+            <div class="cell-sub" style="margin:0 0 3px">{{ source.platform }}{% if source.author %} · {{ source.author }}{% endif %}</div>
+            <div>{{ source.title[:120] }}</div>
+          </div>
+        </div>
+        {% else %}
+        <textarea id="srcText" rows="4" placeholder="例如：小区装充电桩踩过的坑，物业不让装怎么办？&#10;也可以整段粘贴一篇爆款笔记的正文"></textarea>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        <div class="field-label"><span class="step">02</span>写给哪个平台</div>
+        <div class="seg">
+          {% for key, (name, rules) in STYLES.items() %}
+          <label class="seg-item"><input type="radio" name="style" value="{{ key }}" {{ 'checked' if loop.first }}>
+            <span><b>{{ name }}</b><small>{{ {'xhs': '标题 + 正文 + 话题标签 + 配图', 'douyin': '标题 + 口播脚本 + 话题', 'moments': '短文案，不像广告'}[key] }}</small></span></label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="product"><span class="step">03</span>我的业务 / 产品 <small>写得越具体越好，AI 只会用你写的信息，不会编造</small></label>
+        <textarea id="product" rows="4" maxlength="600" placeholder="例如：我们是长沙本地的家用充电桩安装团队，提供免费上门勘测、报装协助、质保服务。主要客户是新买电车的小区业主。"></textarea>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="extra"><span class="step">04</span>补充要求 <small>选填</small></label>
+        <input id="extra" maxlength="300" placeholder="例如：语气轻松一点；突出上门服务；不要写价格">
+      </div>
+
+      <div class="field">
+        <div class="field-label"><span class="step">05</span>配图 <small>配图的画面由 AI 根据文案自动设计</small></div>
+        <div class="seg" id="countSeg">
+          {% for n in range(0, MAX_IMAGES + 1) %}
+          <label class="seg-item"><input type="radio" name="count" value="{{ n }}" {{ 'checked' if n == 3 }}><span><b>{{ '不配图' if n == 0 else n ~ ' 张' }}</b></span></label>
+          {% endfor %}
+        </div>
+        <div class="seg" style="margin-top:8px" id="ratioSeg">
+          {% for key, label in RATIOS.items() %}
+          <label class="seg-item"><input type="radio" name="ratio" value="{{ key }}" {{ 'checked' if loop.first }}><span><b>{{ label }}</b></span></label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="submit-row">
+        <button class="btn btn-primary btn-lg" id="go" {{ 'disabled' if not ai_ready }}>{{ icon('spark') }}开始生成</button>
+        <span class="form-msg" id="msg"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">{{ icon('list') }}说明 <span class="code">NOTES</span></div></div>
+    <ul class="price-notes" style="border-top:0">
+      <li>生成一般要 <b>20～40 秒</b>，可以先离开，完成后在「我的创作」里看。</li>
+      <li>文案先写好，再生成配图。某张配图没生成出来，不影响其他的。</li>
+      <li>AI 被要求不编造数据、案例和人物经历，但<b>发布前请你自己再看一遍</b>，改成你真实的情况。</li>
+      <li>生成的图片会保存在你的账户里，可以下载。</li>
+      <li>费用：用的是你自己的阿里云 Key，<b>由阿里云向你收取</b>，我们不扣评论额度。一次文案约几分钱，一张图约 2 毛。</li>
+    </ul>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const $ = id => document.getElementById(id);
+const SRC = {{ args|tojson }};
+const pick = name => document.querySelector(`input[name=${name}]:checked`).value;
+$('product').value = {{ (me.product_info or '')|tojson }};
+try { $('product').value = localStorage.getItem('huoke_product') || $('product').value; } catch (e) {}
+
+$('go').onclick = async e => {
+  const btn = e.currentTarget, msg = $('msg');
+  btn.disabled = true; msg.className = 'form-msg'; msg.textContent = '';
+  try { localStorage.setItem('huoke_product', $('product').value); } catch (e) {}
+  const d = await postJSON('/api/creations', {
+    video: SRC.video, apost: SRC.apost, source_text: $('srcText') ? $('srcText').value : '',
+    style: pick('style'), product_info: $('product').value, extra: $('extra').value,
+    image_count: pick('count'), ratio: pick('ratio'),
+  }).catch(() => ({ok: false, message: '网络出错，请重试'}));
+  if (d.ok) { location.href = `/creations/${d.id}`; return; }
+  btn.disabled = false; msg.className = 'form-msg err'; msg.textContent = d.message || '生成失败，请重试';
+};
+</script>
+{% endblock %}

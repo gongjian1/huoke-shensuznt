@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0a0c0f">
+<title>{% block title %}获客系统{% endblock %}</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v={{ css_v }}">
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <a class="brand" href="/">
+      {{ logo() }}
+      <div>
+        <div class="brand-name">获客系统</div>
+        <div class="brand-sub">LEAD·OPS</div>
+      </div>
+    </a>
+    <nav class="nav">
+      <div class="nav-label">NAVIGATION</div>
+      {% set p = request.path %}
+      {% set items = [
+          ('/', '仪表盘', 'dash', p == '/'),
+          ('/collect', '采集任务', 'scan', p.startswith('/collect')),
+          ('/leads', '线索', 'target', p.startswith('/leads')),
+          ('/videos', '作品库', 'play', p.startswith('/videos')),
+          ('/creations', 'AI 图文', 'spark', p.startswith('/creations') or p.startswith('/create')),
+          ('/ai-videos', 'AI 视频', 'film', p.startswith('/ai-videos')),
+          ('/accounts', '对标账号', 'eye', p.startswith('/accounts')),
+          ('/account', '我的账户', 'user', p.startswith('/account'))] %}
+      {% if not me.is_admin %}{% set items = items + [('/recharge', '充值', 'coin', p.startswith('/recharge'))] %}{% endif %}
+      {% if me.is_admin %}{% set items = items + [('/admin', '管理后台', 'shield', p.startswith('/admin'))] %}{% endif %}
+      {% for href, name, ic, on in items %}
+      <a href="{{ href }}" class="{{ 'active' if on }}">{{ icon(ic) }}<span>{{ name }}</span><span class="idx">{{ '%02d'|format(loop.index) }}</span></a>
+      {% endfor %}
+    </nav>
+    <div class="rail-foot">
+      {% if me.is_admin %}
+      <div class="readout">{{ icon('wallet') }}<span>API 余额</span><b id="balance">—</b></div>
+      {% else %}
+      <a class="readout points-link" href="/recharge" title="去充值">{{ icon('coin') }}<span>评论额度</span><b id="points">{{ pts(me.balance) }}</b></a>
+      {% endif %}
+      <div class="who">
+        <span class="who-name">{{ me.nickname or me.phone }}</span>
+        <span class="who-sub">{{ '管理员 · 采集免费' if me.is_admin else me.phone[:3] ~ '****' ~ me.phone[-4:] }}</span>
+      </div>
+      <div class="sys"><i></i><span>ONLINE</span><span id="clock"></span></div>
+      <a class="logout" href="/logout">{{ icon('logout') }}<span>退出登录</span></a>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, m in messages %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+<script>
+async function postJSON(url, data) {
+  const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data || {})});
+  return r.json();
+}
+async function updateLead(id, field, value, el) {
+  const d = await postJSON(`/api/lead/${id}`, {[field]: value});
+  if (el && d.ok) { el.classList.add('saved'); setTimeout(() => el.classList.remove('saved'), 900); }
+}
+{% if me.is_admin %}
+fetch('/api/balance').then(r => r.json()).then(d => {
+  document.getElementById('balance').textContent = d.balance == null ? (d.unit === 'comments' ? '不限额度' : '读取失败') : (d.unit === 'comments' ? '约 ' + Number(d.balance).toLocaleString() + ' 条评论' : '$' + Number(d.balance).toFixed(2));
+}).catch(() => {});
+{% endif %}
+function refreshPoints() {
+  const el = document.getElementById('points');
+  if (el) fetch('/api/me').then(r => r.json()).then(d => { el.textContent = d.balance_text; }).catch(() => {});
+}
+window.addEventListener('load', () => {
+  const nav = document.querySelector('.nav'), a = nav && nav.querySelector('a.active');
+  if (a && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = a.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2;
+});
+(function tick() {
+  const el = document.getElementById('clock');
+  if (el) el.textContent = new Date().toLocaleTimeString('zh-CN', {hour12: false});
+  setTimeout(tick, 1000);
+})();
+document.querySelectorAll('.comment-text[data-hits]').forEach(el => {
+  const node = el.querySelector('.ct');
+  const hits = el.dataset.hits.split(',').map(s => s.trim()).filter(Boolean).sort((a, b) => b.length - a.length);
+  if (!node || !hits.length) return;
+  const text = node.textContent;
+  const re = new RegExp(hits.map(h => h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
+  const frag = document.createDocumentFragment();
+  let last = 0;
+  text.replace(re, (m, i) => {
+    frag.append(text.slice(last, i));
+    const mk = document.createElement('mark');
+    mk.textContent = m;
+    frag.append(mk);
+    last = i + m.length;
+    return m;
+  });
+  frag.append(text.slice(last));
+  node.replaceChildren(frag);
+});
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

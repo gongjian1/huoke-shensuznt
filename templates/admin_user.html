@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}{{ user.nickname or user.phone }} - 用户管理{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">Admin / User #{{ user.id }}</div>
+    <h1>{{ user.nickname or user.phone }} <span class="ust ust-{{ user.status }} h1-badge">{{ user.status }}</span></h1>
+    <p class="lead-text mono">{{ user.phone }} · 注册于 {{ (user.created_at or '')[:16] }} · 最近登录 {{ (user.last_login or '从未')[:16] }}</p>
+  </div>
+  <div class="head-actions"><a class="btn" href="/admin">{{ icon('users') }}返回用户列表</a></div>
+</header>
+{% include "_admin_tabs.html" %}
+
+<section class="metrics crop">
+  <div class="metric is-a">
+    <div class="metric-label"><span>剩余评论额度</span><span class="code">BALANCE</span></div>
+    <div class="metric-num">{{ '∞' if user.is_admin else pts(user.balance) }}</div>
+    <div class="metric-sub">{{ '管理员不扣额度' if user.is_admin else '单位：条评论' }}</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label"><span>累计充值</span><span class="code">RECHARGED</span></div>
+    <div class="metric-num">{{ pts(user.total_recharged) }}</div>
+    <div class="metric-sub">累计消耗 <b>{{ pts(user.total_spent) }}</b></div>
+  </div>
+  <div class="metric">
+    <div class="metric-label"><span>线索</span><span class="code">LEADS</span></div>
+    <div class="metric-num">{{ counts.leads }}</div>
+    <div class="metric-sub">其中 A 级 <b>{{ counts.leads_a }}</b></div>
+  </div>
+  <div class="metric">
+    <div class="metric-label"><span>已抓评论</span><span class="code">COMMENTS</span></div>
+    <div class="metric-num">{{ counts.comments }}</div>
+    <div class="metric-sub">来自 <b>{{ counts.videos }}</b> 个作品 · <b>{{ tasks|length }}</b> 个任务</div>
+  </div>
+</section>
+
+<div class="grid-main" style="margin-bottom:18px">
+  <form class="panel" method="post" id="points">
+    <input type="hidden" name="action" value="points">
+    <div class="panel-head">
+      <div class="panel-title">{{ icon('coin') }}额度操作 <span class="code">POINTS</span></div>
+      <span class="panel-meta">当前 {{ pts(user.balance) }} 条</span>
+    </div>
+    <div class="panel-body">
+      <div class="field">
+        <div class="field-label">类型</div>
+        <div class="seg">
+          {% for k, sign in POINT_KINDS.items() %}
+          <label class="seg-item {{ 'neg' if sign < 0 }}"><input type="radio" name="kind" value="{{ k }}" {{ 'checked' if loop.first }}><span>{{ '−' if sign < 0 else '+' }} {{ k }}</span></label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="amount">评论条数 <small>整数，单位是条评论</small></label>
+        <div class="amount-row">
+          <input id="amount" name="amount" class="mono amount-input" inputmode="decimal" placeholder="0" required>
+          <div class="chips quick">
+            {% for v in [10, 50, 100, 200, 500, 1000] %}<button type="button" class="chip" data-v="{{ v }}">{{ v }}</button>{% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="note">备注 <small>比如：微信转账 100 元</small></label>
+        <input id="note" name="note" maxlength="100" placeholder="选填，用户在额度明细里能看到">
+      </div>
+      <button class="btn btn-primary btn-lg">{{ icon('check') }}确认</button>
+    </div>
+  </form>
+
+  <div class="stack" style="margin-bottom:0">
+    <section class="panel" style="margin-bottom:0">
+      <div class="panel-head"><div class="panel-title">{{ icon('shield') }}账号状态 <span class="code">STATUS</span></div></div>
+      <div class="panel-body">
+        <p class="panel-note">待审核和禁用的账号登录不了。禁用后已经登录的也会被踢出。</p>
+        <form method="post" class="seg-actions">
+          <input type="hidden" name="action" value="status">
+          {% for s in USER_STATUSES %}
+          <button name="status" value="{{ s }}" class="btn {{ 'btn-primary' if s == user.status }}" {{ 'disabled' if s == user.status or (user.id == me.id and s != '正常') }}>
+            {{ {'正常': '启用', '待审核': '设为待审核', '禁用': '禁用'}[s] }}
+          </button>
+          {% endfor %}
+        </form>
+      </div>
+    </section>
+    <form class="panel" method="post" style="margin-bottom:0">
+      <input type="hidden" name="action" value="profile">
+      <div class="panel-head"><div class="panel-title">{{ icon('user') }}资料 <span class="code">PROFILE</span></div></div>
+      <div class="panel-body">
+        <div class="grid-2-even" style="margin-bottom:10px">
+          <input name="nickname" value="{{ user.nickname or '' }}" placeholder="称呼" maxlength="20" aria-label="称呼">
+          <input name="note" value="{{ user.note or '' }}" placeholder="备注（只有管理员能看到）" maxlength="200" aria-label="备注">
+        </div>
+        <button class="btn">{{ icon('check') }}保存资料</button>
+      </div>
+    </form>
+    <form class="panel" method="post" style="margin-bottom:0">
+      <input type="hidden" name="action" value="password">
+      <div class="panel-head"><div class="panel-title">{{ icon('lock') }}重置密码 <span class="code">RESET</span></div></div>
+      <div class="panel-body">
+        <div class="amount-row">
+          <input type="text" name="password" placeholder="新密码，至少 6 位" autocomplete="off" aria-label="新密码" required>
+          <button class="btn">{{ icon('refresh') }}重置</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">{{ icon('receipt') }}额度明细 <span class="code">LEDGER</span></div>
+    <span class="panel-meta">最近 200 条</span>
+  </div>
+  {% set show_operator = true %}
+  {% include "_ledger_table.html" %}
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">{{ icon('list') }}采集任务 <span class="code">TASKS</span></div>
+    <span class="panel-meta">最近 30 个</span>
+  </div>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th class="hide-sm">#</th><th class="hide-sm">时间</th><th>关键词</th><th>状态</th><th class="r hide-sm">作品</th><th class="r">A / B</th><th class="r">额度</th><th class="r hide-sm">API 成本</th></tr></thead>
+    <tbody>
+    {% for t in tasks %}
+    <tr>
+      <td class="num hide-sm">{{ '%03d'|format(t.id) }}</td>
+      <td class="num nw hide-sm"><small>{{ (t.created_at or '')[5:16] }}</small></td>
+      <td class="cell-wrap">{{ (t.keywords or '').replace('\n', '，')[:40] }}<span class="cell-sub">{{ t.project }}</span></td>
+      <td><span class="st st-{{ t.status }}">{{ t.status }}</span></td>
+      <td class="num r hide-sm">{{ t.posts }}</td>
+      <td class="num r nw"><span class="tA">{{ t.leads_a }}</span> / <span class="tB">{{ t.leads_b }}</span></td>
+      <td class="num r hi">{{ pts(t.points_cost) }}</td>
+      <td class="num r hide-sm"><small>{{ '$%.3f'|format(t.balance_before - t.balance_after) if t.balance_before is not none and t.balance_after is not none else '–' }}</small></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="empty">还没有任务</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('.quick .chip').forEach(c => c.onclick = () => { document.getElementById('amount').value = c.dataset.v; });
+const WHO = {{ (user.nickname or user.phone)|tojson }};
+document.getElementById('points').addEventListener('submit', e => {
+  const kind = e.target.querySelector('input[name=kind]:checked').value, amt = e.target.amount.value;
+  if (!confirm(`确认给「${WHO}」${kind} ${amt} 条评论额度？`)) e.preventDefault();
+});
+</script>
+{% endblock %}

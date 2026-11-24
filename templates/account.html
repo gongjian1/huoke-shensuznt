@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}我的账户 - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">Account</div>
+    <h1>我的账户</h1>
+  </div>
+</header>
+
+<section class="metrics crop metrics-3">
+  <div class="metric is-a">
+    <div class="metric-label"><span>剩余评论额度</span><span class="code">BALANCE</span></div>
+    <div class="metric-num">{{ '∞' if me.is_admin else pts(me.balance) }}</div>
+    <div class="metric-sub">{{ '管理员采集不扣额度' if me.is_admin else '条评论 · 每抓 1 条新评论扣 1 条' }}{% if not me.is_admin %} · <a href="/recharge" style="color:var(--lime)">去充值</a>{% endif %}</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label"><span>累计消耗（条）</span><span class="code">SPENT</span></div>
+    <div class="metric-num">{{ pts(me.total_spent) }}</div>
+    <div class="metric-sub">共 <b>{{ usage.tasks }}</b> 个采集任务</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label"><span>累计充值（条）</span><span class="code">RECHARGED</span></div>
+    <div class="metric-num">{{ pts(me.total_recharged) }}</div>
+    <div class="metric-sub">注册于 <b>{{ (me.created_at or '')[:10] }}</b></div>
+  </div>
+</section>
+
+<div class="grid-main" style="margin-bottom:18px">
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">{{ icon('coin') }}收费标准 <span class="code">PRICING</span></div>
+      <span class="panel-meta">额度单位：条评论</span>
+    </div>
+    <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>平台</th><th class="r">每抓 1 条新评论扣</th><th class="r">筛选 1000 条评论约扣</th></tr></thead>
+      <tbody>
+        <tr><td>抖音 · 小红书 · 快手 · B站 · 微博 · 知乎 · 西瓜 · 头条 · 皮皮虾</td>
+            <td class="num r hi">{{ prices.normal }} 条额度</td><td class="num r hi">{{ pts(prices.normal * 1000) }} 条额度</td></tr>
+        <tr><td>视频号 · 公众号 <span class="tag">接口成本高</span></td>
+            <td class="num r hi">{{ prices.wechat }} 条额度</td><td class="num r hi">{{ pts(prices.wechat * 1000) }} 条额度</td></tr>
+        <tr><td>AI 仿写 / 配图 <span class="tag">自带 Key</span></td>
+            <td class="num r hi">不扣额度</td><td class="num r hi">用你自己的阿里云 Key，费用由阿里云收取</td></tr>
+        <tr><td>对标账号追踪 <span class="tag">每刷新一次</span></td>
+            <td class="num r hi">{{ pts(prices.track) }} 条额度</td><td class="num r hi">每 12 小时刷新 ≈ 每月 {{ pts(prices.track * 60) }} 条 / 个</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <ul class="price-notes">
+      <li>按<b>新抓到的评论条数</b>扣额度：抓到 100 条新评论就扣 100 条，搜不到、没评论、重复的评论都不扣。</li>
+      <li>"每个作品最多抓 100 条"就是这个作品最多扣 100 条（视频号、公众号每条扣 {{ prices.wechat }} 条）。</li>
+      <li>额度不够时会自动少抓或停止，不会扣成负数。</li>
+    </ul>
+  </section>
+
+  <div class="stack" style="margin-bottom:0">
+    <form class="panel" method="post" style="margin-bottom:0">
+      <input type="hidden" name="action" value="profile">
+      <div class="panel-head"><div class="panel-title">{{ icon('user') }}资料 <span class="code">PROFILE</span></div></div>
+      <div class="panel-body">
+        <div class="field">
+          <label class="field-label">手机号</label>
+          <input value="{{ me.phone }}" disabled class="mono">
+        </div>
+        <div class="field" style="margin-bottom:14px">
+          <label class="field-label" for="nickname">称呼</label>
+          <input id="nickname" name="nickname" value="{{ me.nickname or '' }}" maxlength="20">
+        </div>
+        <button class="btn">{{ icon('check') }}保存资料</button>
+      </div>
+    </form>
+    <form class="panel" method="post" style="margin-bottom:0">
+      <input type="hidden" name="action" value="password">
+      <div class="panel-head"><div class="panel-title">{{ icon('lock') }}修改密码 <span class="code">PASSWORD</span></div></div>
+      <div class="panel-body">
+        <div class="field" style="margin-bottom:10px"><input type="password" name="old" placeholder="当前密码" autocomplete="current-password" aria-label="当前密码" required></div>
+        <div class="grid-2-even" style="margin-bottom:14px">
+          <input type="password" name="password" placeholder="新密码，至少 6 位" autocomplete="new-password" aria-label="新密码" required>
+          <input type="password" name="password2" placeholder="再输一次" autocomplete="new-password" aria-label="再输一次" required>
+        </div>
+        <button class="btn">{{ icon('check') }}修改密码</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% include "_ai_key_form.html" %}
+
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">{{ icon('receipt') }}额度明细 <span class="code">LEDGER</span></div>
+    <span class="panel-meta">最近 100 条</span>
+  </div>
+  {% include "_ledger_table.html" %}
+</section>
+{% endblock %}

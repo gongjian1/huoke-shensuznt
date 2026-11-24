@@ -1,0 +1,8 @@
+{% set p = request.path %}
+<nav class="tabs">
+  <a href="/admin" class="{{ 'active' if p == '/admin' or p.startswith('/admin/users') }}">{{ icon('users') }}用户管理</a>
+  <a href="/admin/recharges" class="{{ 'active' if p.startswith('/admin/recharges') }}">{{ icon('wallet') }}充值订单{% if pending_recharges %} <span class="badge-new">{{ pending_recharges }}</span>{% endif %}</a>
+  <a href="/admin/gateway" class="{{ 'active' if p.startswith('/admin/gateway') }}">{{ icon('key') }}接口 Key</a>
+  <a href="/admin/ledger" class="{{ 'active' if p.startswith('/admin/ledger') }}">{{ icon('receipt') }}额度流水</a>
+  <a href="/admin/settings" class="{{ 'active' if p.startswith('/admin/settings') }}">{{ icon('sliders') }}系统设置</a>
+</nav>

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}线索 - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">03 / Leads</div>
+    <h1>线索</h1>
+  </div>
+  <div class="head-actions">
+    {% if not me.is_admin %}<a class="btn" href="/intent" title="设置哪些词算强意向、中意向，哪些词要排除">{{ icon('tag') }}我的意向词</a>{% endif %}
+    <button class="btn" id="rescore" type="button" title="用你最新的意向词把以前抓过的评论再筛一遍，不扣额度">{{ icon('refresh') }}重新筛选</button>
+    <button class="btn" type="button" onclick="dmBatch(this)" title="给本页还没有话术的线索各生成一条公开回复 + 私信开场白">{{ icon('send') }}<span>批量生成话术</span></button>
+    <a class="btn" href="/leads.csv{{ qs(page=None, sort=None) }}">{{ icon('download') }}导出当前筛选</a>
+  </div>
+</header>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <select name="project" aria-label="项目"><option value="">全部项目</option>
+      {% for p in projects %}<option value="{{ p }}" {{ 'selected' if f.project == p }}>{{ p }}</option>{% endfor %}</select>
+    <select name="platform" aria-label="平台"><option value="">全部平台</option>
+      {% for k, lab in LABELS.items() %}<option value="{{ k }}" {{ 'selected' if f.platform == k }}>{{ lab }}</option>{% endfor %}</select>
+    <select name="tier" aria-label="等级"><option value="">全部等级</option>
+      <option value="A" {{ 'selected' if f.tier == 'A' }}>A 强意向</option>
+      <option value="B" {{ 'selected' if f.tier == 'B' }}>B 中意向</option></select>
+    <select name="status" aria-label="状态"><option value="">全部状态</option>
+      {% for s in STATUSES %}<option value="{{ s }}" {{ 'selected' if f.status == s }}>{{ s }}</option>{% endfor %}</select>
+    <select name="province" aria-label="地区"><option value="">全部地区</option>
+      {% for name, n in provinces %}<option value="{{ name }}" {{ 'selected' if f.province == name }}>{{ name }}（{{ n }}）</option>{% endfor %}</select>
+    <select name="days" aria-label="评论时间"><option value="">评论时间不限</option>
+      {% for d, label in [(7, '近 7 天'), (30, '近 30 天'), (90, '近 90 天'), (180, '近半年'), (365, '近 1 年')] %}
+      <option value="{{ d }}" {{ 'selected' if f.days == d|string }}>评论{{ label }}</option>{% endfor %}</select>
+    <select name="keyword" aria-label="搜索词"><option value="">全部搜索词</option>
+      {% for k in keywords %}<option value="{{ k }}" {{ 'selected' if f.keyword == k }}>{{ k }}</option>{% endfor %}</select>
+    <select name="sort" aria-label="排序">
+      <option value="tier" {{ 'selected' if sort == 'tier' }}>排序：意向等级</option>
+      <option value="comment" {{ 'selected' if sort == 'comment' }}>排序：评论最新</option>
+      <option value="new" {{ 'selected' if sort == 'new' }}>排序：最近采集</option>
+    </select>
+    {% if f.video %}<input type="hidden" name="video" value="{{ f.video }}">{% endif %}
+    <div class="search-field">{{ icon('search') }}<input type="text" name="q" value="{{ f.q }}" placeholder="搜昵称 / 评论 / 账号 / 微信 / 备注" aria-label="搜索"></div>
+    <button class="btn btn-primary">{{ icon('filter') }}筛选</button>
+    <a href="/leads" class="btn btn-ghost">{{ icon('refresh') }}重置</a>
+  </form>
+  {% if f.video %}
+  <div class="filter-note">仅看作品：<b>{{ (video_title or f.video)[:40] }}</b> <a href="/leads{{ qs(video=None, page=None) }}">取消</a></div>
+  {% endif %}
+  {% if f.days %}<div class="filter-note muted">评论时间筛选只包含有评论时间的线索，这个功能上线前采集的老线索没有评论时间，会被排除。</div>{% endif %}
+  <div class="toolbar-foot">
+    <span>RESULTS <b>{{ total }}</b>{% if pages > 1 %} · 第 {{ page }} / {{ pages }} 页{% endif %}</span>
+    <span>A <b class="tA">{{ tier_counts.get('A', 0) }}</b> · B <b class="tB">{{ tier_counts.get('B', 0) }}</b></span>
+  </div>
+</section>
+
+{% include "_lead_table.html" %}
+
+{% if pages > 1 %}
+<nav class="pager" aria-label="分页">
+  {% if page > 1 %}<a class="btn" href="{{ qs(page=page - 1) }}">上一页</a>{% else %}<span class="btn is-off">上一页</span>{% endif %}
+  <span class="pager-info">{{ page }} / {{ pages }}</span>
+  {% if page < pages %}<a class="btn" href="{{ qs(page=page + 1) }}">下一页</a>{% else %}<span class="btn is-off">下一页</span>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('rescore').onclick = async e => {
+  const btn = e.currentTarget, ic = btn.querySelector('.i-refresh');
+  btn.disabled = true; ic.classList.add('spin');
+  const d = await postJSON('/api/rescore');
+  btn.disabled = false; ic.classList.remove('spin');
+  if (d.added) location.reload(); else alert('没有新增线索');
+};
+</script>
+{% endblock %}

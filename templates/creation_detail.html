@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}{{ c.title or 'AI 创作' }} - 获客系统{% endblock %}
+{% block content %}
+{% set live = c.status == '生成中' %}
+<header class="page-head">
+  <div>
+    <div class="kicker">AI Studio / #{{ c.id }} · {{ STYLES.get(c.style, ('文案',))[0] }}</div>
+    <h1>{{ c.title or ('正在创作…' if live else 'AI 创作 #' ~ c.id) }}</h1>
+  </div>
+  <div class="head-actions">
+    <a class="btn" href="/creations">{{ icon('image') }}我的创作</a>
+    {% if not live %}
+    {% if c.title or c.body %}<a class="btn btn-primary" href="/ai-videos/new?creation={{ c.id }}">{{ icon('film') }}做成视频</a>{% endif %}
+    <button class="btn" id="redo" title="用同样的设置再生成一版">{{ icon('refresh') }}再生成一版</button>
+    <button class="btn" id="del">{{ icon('trash') }}删除</button>
+    {% endif %}
+  </div>
+</header>
+
+{% if live %}
+<section class="panel live-box">
+  <div class="panel-body">
+    <div class="live-row"><span class="live-ic">{{ icon('spark', 'spin') }}</span>
+      <div><b id="liveText">{{ c.progress or 'AI 正在准备…' }}</b>
+        <div class="muted" style="font-size:12.5px">一般 20～40 秒，页面会自动刷新，你也可以先离开。</div></div></div>
+  </div>
+</section>
+{% elif c.status == '失败' %}
+<div class="flash err">{{ c.error or '生成失败，请重试' }}</div>
+{% elif c.error %}
+<div class="flash err">{{ c.error }}</div>
+{% endif %}
+
+{% if not live and (c.title or c.body) %}
+<a class="callout" href="/ai-videos/new?creation={{ c.id }}">
+  <span class="callout-ic">{{ icon('film') }}</span>
+  <span class="callout-text"><b>下一步：把它做成短视频</b><small>可以用下面的配图当第一帧，让画面动起来；也可以只用文字描述生成。</small></span>
+  <span class="callout-go">做成视频 {{ icon('arrow') }}</span>
+</a>
+{% endif %}
+
+{% if c.title or c.body %}
+<div class="grid-main" style="margin-bottom:18px">
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">{{ icon('list') }}文案 <span class="code">COPY</span></div>
+      <span class="panel-meta" id="count"></span>
+    </div>
+    <div class="panel-body">
+      <div class="field">
+        <div class="field-label">标题 <button type="button" class="btn-sm" data-copy="title">{{ icon('copy') }}复制</button></div>
+        <input id="title" value="{{ c.title or '' }}" maxlength="80" {{ 'disabled' if live }}>
+      </div>
+      <div class="field">
+        <div class="field-label">正文 <button type="button" class="btn-sm" data-copy="body">{{ icon('copy') }}复制</button></div>
+        <textarea id="body" rows="14" class="copy-body" {{ 'disabled' if live }}>{{ c.body or '' }}</textarea>
+      </div>
+      <div class="field">
+        <div class="field-label">话题标签 <small>用空格分开</small> <button type="button" class="btn-sm" data-copy="tags">{{ icon('copy') }}复制（带 #）</button></div>
+        <input id="tags" value="{{ tags|join(' ') }}" {{ 'disabled' if live }}>
+      </div>
+      <div class="submit-row">
+        <button class="btn btn-primary" id="save" {{ 'disabled' if live }}>{{ icon('check') }}保存修改</button>
+        <button class="btn" id="copyAll" {{ 'disabled' if live }}>{{ icon('copy') }}复制全部</button>
+        <span class="form-msg" id="msg"></span>
+      </div>
+      <p class="panel-note" style="margin:16px 0 0">AI 被要求不编造数据和案例，但发布前请你再看一遍，把它改成你真实的情况。</p>
+    </div>
+  </section>
+
+  <div class="stack" style="margin-bottom:0">
+    <section class="panel" style="margin-bottom:0">
+      <div class="panel-head">
+        <div class="panel-title">{{ icon('image') }}配图 <span class="code">IMAGES</span></div>
+        <span class="panel-meta">{{ images|length }} / {{ c.image_count }}</span>
+      </div>
+      <div class="panel-body">
+        {% if c.image_count == 0 %}
+          <p class="muted" style="font-size:12.5px">这次没有选配图。</p>
+        {% else %}
+        <div class="img-grid r-{{ c.ratio|replace(':', '-') }}">
+          {% for name in images %}
+          <figure class="img-tile">
+            <a href="/media/{{ name }}" target="_blank" rel="noopener"><img src="/media/{{ name }}" alt="配图 {{ loop.index }}" loading="lazy"></a>
+            <a class="btn-sm" href="/media/{{ name }}" download="创作{{ c.id }}-配图{{ loop.index }}.{{ name.rsplit('.', 1)[1] }}">{{ icon('download') }}下载</a>
+            <a class="btn-sm" href="/ai-videos/new?creation={{ c.id }}&image={{ loop.index0 }}" title="用这张图当第一帧生成视频">{{ icon('play') }}做成视频</a>
+          </figure>
+          {% endfor %}
+          {% if live %}{% for i in range(images|length, c.image_count) %}<div class="img-tile skel"><span></span></div>{% endfor %}{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="panel" style="margin-bottom:0">
+      <div class="panel-head"><div class="panel-title">{{ icon('target') }}参考内容 <span class="code">SOURCE</span></div></div>
+      <div class="panel-body">
+        <div class="src-card">
+          <span class="thumb"><i class="thumb-ph">{{ (c.source_platform or '粘贴')[:2] }}</i>
+            {% if c.source_cover %}<img src="{{ imgp(c.source_cover) }}" alt="" onerror="this.remove()">{% endif %}</span>
+          <div class="src-card-text">
+            <div class="cell-sub" style="margin:0 0 3px">{{ c.source_platform or '粘贴的文案' }}{% if c.source_author %} · {{ c.source_author }}{% endif %}</div>
+            <div>{{ c.source_title[:120] }}</div>
+            {% if c.source_url %}<a class="panel-link" href="{{ c.source_url }}" target="_blank" rel="noopener" style="margin-top:6px">打开原作品 {{ icon('external') }}</a>{% endif %}
+          </div>
+        </div>
+        {% if c.product_info %}<p class="panel-note" style="margin:14px 0 0"><b style="color:var(--text-2)">我的业务：</b>{{ c.product_info[:200] }}</p>{% endif %}
+        <p class="panel-note" style="margin:10px 0 0">创建于 {{ c.created_at[:16] }}</p>
+      </div>
+    </section>
+  </div>
+</div>
+{% elif not live %}
+<section class="panel"><div class="panel-body"><p class="muted">没有生成出内容。可以点右上角「再生成一版」重试，失败的不扣额度。</p></div></section>
+{% endif %}
+<div class="toast" id="toast"></div>
+{% endblock %}
+{% block scripts %}
+{% set live = c.status == '生成中' %}
+<script>
+const $ = id => document.getElementById(id);
+const CID = {{ c.id }};
+function toast(text, ok) {
+  const t = $('toast'); t.textContent = text; t.className = 'toast show ' + (ok ? 'ok' : 'err');
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', 2600);
+}
+{% if live %}
+(async function poll() {
+  try {
+    const d = await (await fetch(`/api/creations/${CID}`)).json();
+    if ($('liveText') && d.progress) $('liveText').textContent = d.progress;
+    if (d.status !== '生成中' || d.images !== {{ images|length }} || d.has_text !== {{ 'true' if (c.title or c.body) else 'false' }}) { location.reload(); return; }
+  } catch (e) {}
+  setTimeout(poll, 2500);
+})();
+{% else %}
+const tagsText = () => $('tags').value.split(/[\s,，#]+/).filter(Boolean);
+const tagsHashed = () => tagsText().map(t => '#' + t).join(' ');
+const copy = async (text, label) => {
+  try { await navigator.clipboard.writeText(text); toast(`${label}已复制`, true); }
+  catch (e) { const ta = document.createElement('textarea'); ta.value = text; document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast(`${label}已复制`, true); }
+};
+document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
+  const k = b.dataset.copy;
+  copy(k === 'tags' ? tagsHashed() : $(k).value, {title: '标题', body: '正文', tags: '话题标签'}[k]);
+});
+$('copyAll').onclick = () => copy([$('title').value, '', $('body').value, '', tagsHashed()].join('\n').trim(), '全部内容');
+const count = () => $('count').textContent = `${$('body').value.length} 字`;
+$('body').addEventListener('input', count); count();
+const grow = () => { const b = $('body'); b.style.height = 'auto'; b.style.height = Math.min(b.scrollHeight + 4, 640) + 'px'; };
+$('body').addEventListener('input', grow); grow();
+$('save').onclick = async () => {
+  const d = await postJSON(`/api/creations/${CID}`, {title: $('title').value, body: $('body').value, tags: tagsText()});
+  toast(d.ok ? '已保存' : '保存失败', d.ok);
+};
+$('redo').onclick = async e => {
+  if (!confirm('用同样的设置再生成一版？会在你的阿里云账号上再产生一次费用。')) return;
+  e.currentTarget.disabled = true;
+  const d = await postJSON(`/api/creations/${CID}/redo`);
+  if (d.ok) location.href = `/creations/${d.id}`; else { e.currentTarget.disabled = false; toast(d.message || '失败', false); }
+};
+$('del').onclick = async () => {
+  if (!confirm('删除这条创作和它的配图？')) return;
+  const d = await postJSON(`/api/creations/${CID}/delete`);
+  if (d.ok) location.href = '/creations'; else toast(d.message || '删除失败', false);
+};
+{% endif %}
+</script>
+{% endblock %}

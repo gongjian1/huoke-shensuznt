@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}{{ acc.nickname or acc.account_id }} - 对标账号{% endblock %}
+{% macro spark(values) -%}
+{%- if values|length > 1 -%}
+{%- set lo = values|min -%}{%- set hi = values|max -%}{%- set span = (hi - lo) or 1 -%}
+{%- set n = values|length - 1 -%}
+<svg class="spark" viewBox="0 0 80 24" preserveAspectRatio="none" aria-hidden="true">
+  <polyline points="{% for v in values %}{{ '%.1f'|format(loop.index0 * 80 / n) }},{{ '%.1f'|format(22 - (v - lo) * 20 / span) }} {% endfor %}"/>
+</svg>
+{%- else -%}<span class="muted">—</span>{%- endif -%}
+{%- endmacro %}
+{% block content %}
+<header class="page-head">
+  <div class="acct-head">
+    <span class="avatar lg" data-initial="{{ (acc.nickname or '?')[:1] }}">{% if acc.avatar %}<img src="{{ imgp(acc.avatar) }}" alt="" onerror="this.remove()">{% endif %}</span>
+    <div>
+      <div class="kicker">Benchmark / {{ TRACKERS[acc.platform].label }}</div>
+      <h1>{{ acc.nickname or acc.account_id }}</h1>
+      <p class="lead-text">{% if acc.handle %}<span class="mono">{{ acc.handle }}</span> · {% endif %}{{ (acc.bio or '')[:80] }}</p>
+    </div>
+  </div>
+  <div class="head-actions">
+    <a class="btn" href="/accounts">{{ icon('users') }}返回列表</a>
+    {% if acc.profile_url %}<a class="btn" href="{{ acc.profile_url }}" target="_blank" rel="noopener">{{ icon('external') }}打开主页</a>{% endif %}
+    <button class="btn btn-primary" data-refresh="{{ acc.id }}">{{ icon('refresh') }}立即刷新</button>
+  </div>
+</header>
+
+<section class="metrics crop">
+  <div class="metric is-a">
+    <div class="metric-label"><span>粉丝</span><span class="code">FOLLOWERS</span></div>
+    <div class="metric-num">{{ wan(acc.followers) }}</div>
+    <div class="metric-sub">{% if acc.followers_prev is not none and acc.followers is not none %}比上次 <b>{{ '+' if acc.followers >= acc.followers_prev }}{{ wan(acc.followers - acc.followers_prev) }}</b>{% else %}首次记录{% endif %}</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label"><span>作品总数</span><span class="code">POSTS</span></div>
+    <div class="metric-num">{{ wan(acc.posts_count) }}</div>
+    <div class="metric-sub">已追踪最近 <b>{{ posts|length }}</b> 条</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label"><span>刷新</span><span class="code">SCHEDULE</span></div>
+    <div class="metric-num metric-num-sm">{{ INTERVALS[acc.interval_hours] }}</div>
+    <div class="metric-sub">上次 <b>{{ ago(acc.last_checked) }}</b>{% if acc.active and acc.next_check %} · 下次 <b>{{ ago(acc.next_check) }}</b>{% endif %}</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label"><span>已花额度（条）</span><span class="code">SPENT</span></div>
+    <div class="metric-num">{{ pts(acc.points_cost) }}</div>
+    <div class="metric-sub">追踪这个账号累计</div>
+  </div>
+</section>
+{% if acc.last_error %}<div class="flash err">{{ acc.last_error }}</div>{% endif %}
+
+<div class="table-wrap">
+<table class="data-table">
+  <thead><tr>
+    <th>作品</th><th class="hide-sm">发布</th><th class="r">点赞</th><th class="r">评论</th><th class="r hide-sm">播放</th>
+    <th class="r hide-sm">分享</th><th class="hide-sm">点赞趋势</th><th class="r">操作</th>
+  </tr></thead>
+  <tbody>
+  {% for p in posts %}
+  <tr class="{{ 'row-tier-A' if p.is_new }}">
+    <td>
+      <a class="post-row plain-link" href="{{ p.url }}" target="_blank" rel="noopener">
+        <span class="thumb platform-{{ p.platform }}"><i class="thumb-ph">{{ LABELS.get(p.platform)[:2] }}</i>{% if p.cover %}<img src="{{ imgp(p.cover) }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}</span>
+        <span class="post-row-title">{% if p.is_new %}<span class="badge-new">NEW</span> {% endif %}{% if p.pinned %}<span class="badge">置顶</span> {% endif %}{{ (p.title or '（无标题）')[:70] }}</span>
+      </a>
+    </td>
+    <td class="num nw hide-sm"><small>{{ ago(p.published_at) }}</small></td>
+    <td class="num r nw hi">{{ wan(p.likes) }}{% if p.d_likes and p.d_likes > 0 %}<span class="delta up">+{{ wan(p.d_likes) }}</span>{% endif %}</td>
+    <td class="num r nw">{{ wan(p.comments) }}{% if p.d_comments and p.d_comments > 0 %}<span class="delta up">+{{ wan(p.d_comments) }}</span>{% endif %}</td>
+    <td class="num r nw hide-sm">{{ wan(p.plays) }}</td>
+    <td class="num r hide-sm">{{ wan(p.shares) }}</td>
+    <td class="hide-sm">{{ spark(trend.get(p.id, [])) }}</td>
+    <td class="r nw"><button class="btn-sm accent" data-grab="{{ p.platform }}" data-id="{{ p.native_id }}" data-name="{{ acc.nickname or '' }}">{{ icon('target') }}抓评论</button></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="8" class="empty">还没有作品数据</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<div class="toast" id="toast"></div>
+{% endblock %}
+{% block scripts %}
+{% include "_post_actions.html" %}
+<script>
+document.querySelectorAll('[data-refresh]').forEach(b => b.onclick = async () => {
+  b.disabled = true; b.querySelector('.i').classList.add('spin');
+  const d = await postJSON(`/api/accounts/${b.dataset.refresh}/refresh`);
+  toast(d.message, d.ok); if (d.ok) setTimeout(() => location.reload(), 700); else { b.disabled = false; b.querySelector('.i').classList.remove('spin'); }
+});
+</script>
+{% endblock %}

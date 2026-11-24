@@ -1,0 +1,28 @@
+<article class="post-card {{ 'is-new' if p.is_new }}">
+  <a class="post-cover" href="{{ p.url }}" target="_blank" rel="noopener">
+    <span class="poster platform-{{ p.platform }}"><i>{{ LABELS.get(p.platform, p.platform) }}</i><b>{{ (p.title or '（无标题）')[:42] }}</b></span>
+    {% if p.cover %}<img src="{{ imgp(p.cover) }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}
+    <span class="post-badges">
+      {% if p.is_new %}<span class="badge-new">NEW</span>{% endif %}
+      {% if p.pinned %}<span class="badge">置顶</span>{% endif %}
+    </span>
+  </a>
+  <div class="post-body">
+    <a class="post-title" href="{{ p.url }}" target="_blank" rel="noopener">{{ p.title or '（无标题）' }}</a>
+    <div class="post-meta">
+      <span class="platform platform-{{ p.platform }}">{{ p.nickname or LABELS.get(p.platform) }}</span>
+      <span>{{ ago(p.published_at) }}</span>
+    </div>
+    <div class="post-stats">
+      {% for label, v, d in [('赞', p.likes, p.d_likes), ('评', p.comments, p.d_comments), ('播', p.plays, p.d_plays)] %}
+        {% if v is not none %}<span><i>{{ label }}</i><b>{{ wan(v) }}</b>{% if d and d > 0 %}<em class="delta up">+{{ wan(d) }}</em>{% endif %}</span>{% endif %}
+      {% endfor %}
+    </div>
+    <div class="post-actions">
+      <button class="btn-sm accent" data-grab="{{ p.platform }}" data-id="{{ p.native_id }}" data-name="{{ p.nickname or '' }}">{{ icon('target') }}抓评论</button>
+      <a class="btn-sm" href="/create?apost={{ p.id|urlencode }}" title="用 AI 仿写这条内容">{{ icon('spark') }}仿写</a>
+      <a class="btn-sm" href="/ai-videos/new?apost={{ p.id|urlencode }}" title="参考这条内容，用 AI 生成视频">{{ icon('film') }}做视频</a>
+      <a class="btn-sm" href="{{ p.url }}" target="_blank" rel="noopener">{{ icon('external') }}打开</a>
+    </div>
+  </div>
+</article>

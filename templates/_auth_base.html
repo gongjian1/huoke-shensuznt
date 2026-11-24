@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0a0c0f">
+<title>{% block title %}登录{% endblock %} - 获客系统</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v={{ css_v }}">
+</head>
+<body class="login-body">
+<div class="login">
+  <aside class="login-visual">
+    <svg class="scope" viewBox="0 0 600 600" aria-hidden="true">
+      <defs>
+        <linearGradient id="sweepFill" x1="1" y1="0" x2="0" y2=".6">
+          <stop offset="0" stop-color="#c6f432" stop-opacity=".22"/>
+          <stop offset="1" stop-color="#c6f432" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <circle class="ring" cx="300" cy="300" r="260"/>
+      <circle class="ring faint" cx="300" cy="300" r="216"/>
+      <circle class="ring" cx="300" cy="300" r="173"/>
+      <circle class="ring faint" cx="300" cy="300" r="130"/>
+      <circle class="ring" cx="300" cy="300" r="87"/>
+      <line class="axis" x1="300" y1="30" x2="300" y2="570"/>
+      <line class="axis" x1="30" y1="300" x2="570" y2="300"/>
+      {% for i in range(72) %}
+      <line class="tick{{ ' major' if i % 6 == 0 }}" x1="300" y1="{{ 26 if i % 6 == 0 else 32 }}" x2="300" y2="38" transform="rotate({{ i * 5 }} 300 300)"/>
+      {% endfor %}
+      <text class="deg" x="300" y="16" text-anchor="middle">000</text>
+      <text class="deg" x="590" y="303" text-anchor="end">090</text>
+      <text class="deg" x="300" y="596" text-anchor="middle">180</text>
+      <text class="deg" x="10" y="303">270</text>
+      <g class="sweep">
+        <path d="M300 300 L300 40 A260 260 0 0 0 132.9 100.8 Z" fill="url(#sweepFill)"/>
+        <line x1="300" y1="300" x2="300" y2="40" stroke="#c6f432" stroke-opacity=".7" stroke-width="1"/>
+      </g>
+      <g class="blip"><circle cx="380" cy="170" r="6" style="animation-delay:.61s"/><rect x="377.5" y="167.5" width="5" height="5"/><text x="391" y="174">DY 抖音</text></g>
+      <g class="blip"><circle cx="420" cy="360" r="6" style="animation-delay:2.27s"/><rect x="417.5" y="357.5" width="5" height="5"/><text x="431" y="364">KS 快手</text></g>
+      <g class="blip b"><circle cx="250" cy="420" r="6" style="animation-delay:3.94s"/><rect x="247.5" y="417.5" width="5" height="5"/><text x="261" y="424">WX 视频号</text></g>
+      <g class="blip"><circle cx="150" cy="330" r="6" style="animation-delay:5.03s"/><rect x="147.5" y="327.5" width="5" height="5"/><text x="161" y="334">BL B站</text></g>
+      <g class="blip b"><circle cx="205" cy="235" r="6" style="animation-delay:5.92s"/><rect x="202.5" y="232.5" width="5" height="5"/><text x="216" y="239">XHS 小红书</text></g>
+      <circle cx="300" cy="300" r="3" fill="#c6f432"/>
+    </svg>
+
+    <div class="login-brand">
+      {{ logo('lg') }}
+      <div>
+        <div class="brand-name">获客系统</div>
+        <div class="brand-sub">LEAD·OPS</div>
+      </div>
+    </div>
+
+    <div class="login-copy">
+      <div class="kicker">Lead acquisition console</div>
+      <h2>从同行的评论区里<br><em>找到想买的人</em></h2>
+      <p>输入关键词，跨平台搜索作品、抓取评论，按意向词自动分级，再一条条跟进到成交。</p>
+    </div>
+
+    <div class="login-specs">
+      <div><b>10</b><span>覆盖平台</span></div>
+      <div><b>A·B</b><span>意向分级</span></div>
+      <div><b>24h</b><span>云端在线</span></div>
+    </div>
+  </aside>
+
+  <main class="login-panel">
+    <form class="login-form" method="post">
+      <div class="login-brand login-mobile-brand">
+        {{ logo('lg') }}
+        <div><div class="brand-name">获客系统</div><div class="brand-sub">LEAD·OPS</div></div>
+      </div>
+      {% block form %}{% endblock %}
+    </form>
+    <footer class="login-foot"><span>{{ request.host|upper }}</span><span>TLS · SECURED</span></footer>
+  </main>
+</div>
+</body>
+</html>

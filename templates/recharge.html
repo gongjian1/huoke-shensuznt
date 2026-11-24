@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}充值 - 获客系统{% endblock %}
+{% block content %}
+{% set has_qr = pay.qr.wechat or pay.qr.alipay %}
+<header class="page-head">
+  <div>
+    <div class="kicker">Recharge</div>
+    <h1>充值评论额度</h1>
+    <p class="lead-text">按评论条数计：筛选 1000 条评论约 {{ (100000 / per_yuan / 100)|round(1)|string|replace(".0", "") }} 元起，套餐越大越便宜。扫码付款后提交一下，管理员核对到账后额度自动加上。</p>
+  </div>
+  <div class="head-actions"><span class="balance-chip">{{ icon('coin') }}剩余额度 <b>{{ pts(me.balance) }}</b> 条</span></div>
+</header>
+
+{% if not has_qr %}
+<div class="flash err">收款码还没有设置，暂时不能在线提交。{% if pay.contact %}请直接联系：{{ pay.contact }}{% else %}请联系管理员。{% endif %}</div>
+{% endif %}
+
+<div class="grid-main" style="margin-bottom:18px">
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">{{ icon('coin') }}选择套餐 <span class="code">PACKAGE</span></div></div>
+    <div class="panel-body">
+      <div class="field">
+        <div class="field-label"><span class="step">01</span>充多少</div>
+        <div class="pkg-grid">
+          {% for amount, credits in pay.packages %}
+          <label class="pkg"><input type="radio" name="pkg" value="{{ amount }}" data-credits="{{ credits }}" {{ 'checked' if loop.index == 2 or (loop.last and loop.length == 1) }}>
+            <span>
+              <b class="pkg-amt">¥{{ yuan(amount) }}</b>
+              <small class="pkg-get">到账 {{ pts(credits) }} 条评论</small>
+              <i class="pkg-bonus">¥{{ '%.1f'|format(amount * 10 / credits)|replace('.0', '') }} / 千条</i>
+            </span></label>
+          {% endfor %}
+          <label class="pkg"><input type="radio" name="pkg" value="custom" {{ 'checked' if not pay.packages }}>
+            <span><b class="pkg-amt">自定义</b><small class="pkg-get">{{ CUSTOM_MIN }} 元起</small></span></label>
+        </div>
+        <div class="custom-amt" id="customBox" hidden>
+          <input id="customAmount" class="mono" inputmode="decimal" placeholder="输入金额，元" autocomplete="off" aria-label="自定义金额">
+          <span class="muted">元 · 1 元 = {{ per_yuan }} 条评论（套餐更划算）</span>
+        </div>
+      </div>
+
+      {% if has_qr %}
+      <div class="field">
+        <div class="field-label"><span class="step">02</span>扫码付款 <small>请付 <b id="payAmount" style="color:var(--lime)"></b>，到账 <b id="getCredits" style="color:var(--lime)"></b> 条评论额度，金额要和上面一致</small></div>
+        {% if pay.qr.wechat and pay.qr.alipay %}
+        <div class="seg" style="margin-bottom:12px">
+          {% for key, label in METHODS.items() %}
+          <label class="seg-item"><input type="radio" name="method" value="{{ key }}" {{ 'checked' if loop.first }}><span><b>{{ label }}</b></span></label>
+          {% endfor %}
+        </div>
+        {% else %}
+        <input type="radio" name="method" value="{{ 'wechat' if pay.qr.wechat else 'alipay' }}" checked hidden>
+        {% endif %}
+        <div class="qr-stage">
+          {% for key, label in METHODS.items() if pay.qr[key] %}
+          <figure class="qr-box" data-method="{{ key }}">
+            <img src="/pay-qr/{{ key }}?v={{ pay.qr_v[key] }}" alt="{{ label }}收款码">
+            <figcaption>{{ label }}扫码付款</figcaption>
+          </figure>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="payerNote"><span class="step">03</span>付款备注 <small>填你的微信昵称或支付宝姓名，方便管理员核对</small></label>
+        <input id="payerNote" maxlength="40" placeholder="例如：微信昵称 / 支付宝姓名" autocomplete="off">
+      </div>
+      <div class="submit-row">
+        <button class="btn btn-primary btn-lg" id="go">{{ icon('check') }}我已付款，提交</button>
+        <span class="form-msg" id="msg"></span>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <div class="stack" style="margin-bottom:0">
+    <section class="panel" style="margin-bottom:0">
+      <div class="panel-head"><div class="panel-title">{{ icon('list') }}说明 <span class="code">NOTES</span></div></div>
+      <ul class="price-notes" style="border-top:0">
+        <li>付款后点「我已付款，提交」，管理员收到款会在后台确认，额度<b>一般几分钟到几小时内</b>到账。</li>
+        <li>采集时<b>每抓到 1 条新评论扣 1 条额度</b>（视频号、公众号每条扣 {{ prices.wechat }} 条），重复的评论不扣；对标账号追踪每次刷新也扣一点。<b>AI 仿写和视频不扣额度</b>，用的是你自己的阿里云账号。</li>
+        <li>额度充值后不能提现，没用完一直有效。</li>
+        {% if pay.contact %}<li>付款遇到问题，联系：<b>{{ pay.contact }}</b></li>{% endif %}
+        {% if pay.note %}<li>{{ pay.note }}</li>{% endif %}
+      </ul>
+    </section>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">{{ icon('receipt') }}我的充值记录 <span class="code">ORDERS</span></div>
+    <span class="panel-meta">最近 20 笔</span>
+  </div>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>时间</th><th class="r">付款金额</th><th class="r">到账评论</th><th>方式</th><th>状态</th><th></th></tr></thead>
+    <tbody>
+      {% for o in orders %}
+      <tr>
+        <td class="nw">{{ ago(o.created_at) }}</td>
+        <td class="num r hi">¥{{ yuan(o.amount) }}</td>
+        <td class="num r">{{ pts(o.credits) if o.credits else '—' }} 条</td>
+        <td>{{ o.method }}</td>
+        <td>{% if o.status == '已到账' %}<span class="badge">已到账</span>
+            {% elif o.status == '已拒绝' %}<span class="badge badge-err">已拒绝</span><span class="muted" style="margin-left:6px">{{ o.reject_note }}</span>
+            {% else %}<span class="badge-new">等待确认</span>{% endif %}</td>
+        <td class="r">{% if o.status == '待确认' %}<button class="btn-sm danger" data-cancel="{{ o.id }}">撤回</button>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty">还没有充值记录</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+<div class="toast" id="toast"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const $ = id => document.getElementById(id);
+const pick = name => { const e = document.querySelector(`input[name=${name}]:checked`); return e ? e.value : null; };
+function toast(text, ok) {
+  const t = $('toast'); t.textContent = text; t.className = 'toast show ' + (ok ? 'ok' : 'err');
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', 2600);
+}
+const PER_YUAN = {{ per_yuan }};
+function amountCredits() {
+  const p = pick('pkg');
+  if (p === 'custom') return Math.floor((parseFloat($('customAmount').value) || 0) * PER_YUAN);
+  const r = document.querySelector('input[name=pkg]:checked');
+  return r ? +r.dataset.credits || 0 : 0;
+}
+function amountYuan() {
+  const p = pick('pkg');
+  if (p === 'custom') return parseFloat($('customAmount').value) || 0;
+  return p ? +p / 100 : 0;
+}
+function refresh() {
+  const custom = pick('pkg') === 'custom';
+  $('customBox').hidden = !custom;
+  const y = amountYuan();
+  if ($('payAmount')) $('payAmount').textContent = y ? '¥' + (+y.toFixed(2)) : '—';
+  if ($('getCredits')) $('getCredits').textContent = y ? amountCredits().toLocaleString() : '—';
+  const m = pick('method');
+  document.querySelectorAll('.qr-box').forEach(b => b.hidden = b.dataset.method !== m);
+}
+document.querySelectorAll('input[name=pkg], input[name=method]').forEach(i => i.addEventListener('change', refresh));
+$('customAmount').addEventListener('input', refresh);
+refresh();
+
+if ($('go')) $('go').onclick = async e => {
+  const btn = e.currentTarget, msg = $('msg');
+  const custom = pick('pkg') === 'custom';
+  btn.disabled = true; msg.className = 'form-msg'; msg.textContent = '';
+  const d = await postJSON('/api/recharge', {
+    custom, amount: custom ? $('customAmount').value : pick('pkg'),
+    method: pick('method'), note: $('payerNote').value,
+  }).catch(() => ({ok: false, message: '网络出错，请重试'}));
+  if (d.ok) { toast('已提交，等管理员确认到账', true); setTimeout(() => location.reload(), 900); return; }
+  btn.disabled = false; msg.className = 'form-msg err'; msg.textContent = d.message || '提交失败，请重试';
+};
+document.querySelectorAll('[data-cancel]').forEach(b => b.onclick = async () => {
+  if (!confirm('撤回这笔付款提交？（如果你已经付过款，请不要撤回）')) return;
+  const d = await postJSON(`/api/recharge/${b.dataset.cancel}/cancel`);
+  if (d.ok) location.reload(); else toast(d.message || '撤回失败', false);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% set rows = ledger if ledger is defined else rows %}
+<div class="table-wrap">
+<table class="data-table">
+  <thead><tr>
+    <th>时间</th>{% if show_user %}<th>用户</th>{% endif %}<th>类型</th><th>说明</th>
+    <th class="r">变动</th><th class="r">余额</th>{% if show_operator %}<th class="hide-sm">操作人</th>{% endif %}
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td class="num nw"><small>{{ (r.created_at or '')[:16] }}</small></td>
+    {% if show_user %}<td class="nw"><a class="plain-link" href="/admin/users/{{ r.user_id }}">{{ r.nickname }}</a><span class="cell-sub">{{ r.phone }}</span></td>{% endif %}
+    <td><span class="kind kind-{{ r.kind }}">{{ r.kind }}</span></td>
+    <td class="cell-wrap">{{ r.note or '' }}</td>
+    <td class="num r nw {{ 'pos' if r.delta > 0 else 'neg' }}">{{ '+' if r.delta > 0 }}{{ pts(r.delta) }}</td>
+    <td class="num r">{{ pts(r.balance_after) }}</td>
+    {% if show_operator %}<td class="hide-sm muted">{{ r.operator or '系统' }}</td>{% endif %}
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="empty">还没有额度记录</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}AI 创作 - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">AI Studio</div>
+    <h1>我的创作</h1>
+    <p class="lead-text">用对标爆款仿写出来的原创图文，连同配图都保存在这里。</p>
+  </div>
+  <div class="head-actions"><a class="btn btn-primary" href="/create">{{ icon('spark') }}新建创作</a></div>
+</header>
+{% include "_ai_tabs.html" %}
+
+{% if not ai_ready %}<div class="flash err">AI 创作功能还没有开通，需要管理员先在后台配置阿里云百炼。</div>{% endif %}
+
+<div class="feed cfeed">
+  {% for c in rows %}
+  {% set imgs = loads(c.images or '[]') %}
+  <a class="post-card creation-card plain-link" href="/creations/{{ c.id }}">
+    <span class="post-cover">
+      <span class="poster"><i>{{ STYLES.get(c.style, ('文案',))[0] }}</i><b>{{ (c.title or c.source_title or '')[:42] }}</b></span>
+      {% if imgs %}<img src="/media/{{ imgs[0] }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}
+      <span class="post-badges">
+        {% if c.status == '生成中' %}<span class="badge-new">生成中</span>{% elif c.status == '失败' %}<span class="badge badge-err">失败</span>{% endif %}
+        {% if imgs|length > 1 %}<span class="badge">{{ imgs|length }} 图</span>{% endif %}
+      </span>
+    </span>
+    <span class="post-body">
+      <span class="post-title">{{ c.title or ('参考：' ~ c.source_title[:30]) }}</span>
+      <span class="post-meta"><span>{{ STYLES.get(c.style, ('文案',))[0] }}</span><span>{{ ago(c.created_at) }}</span></span>
+      <span class="post-stats"><span><i>参考</i><b>{{ (c.source_platform or '粘贴')[:4] }}</b></span><span><i>配图</i><b>{{ imgs|length }}</b></span></span>
+    </span>
+  </a>
+  {% else %}
+  <p class="empty" style="grid-column:1/-1">还没有创作。去「作品库」点任意作品上的「仿写」，或者<a href="/create" style="color:var(--lime);margin-left:4px">直接新建</a>。</p>
+  {% endfor %}
+</div>
+
+{% if pages > 1 %}
+<nav class="pager" aria-label="分页">
+  {% if page > 1 %}<a class="btn" href="{{ qs(page=page - 1) }}">上一页</a>{% else %}<span class="btn is-off">上一页</span>{% endif %}
+  <span class="pager-info">{{ page }} / {{ pages }}</span>
+  {% if page < pages %}<a class="btn" href="{{ qs(page=page + 1) }}">下一页</a>{% else %}<span class="btn is-off">下一页</span>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

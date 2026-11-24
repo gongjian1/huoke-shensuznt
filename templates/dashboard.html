@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}仪表盘 - 获客系统{% endblock %}
+{% block content %}
+{% set pq = project|urlencode %}
+{% set total = stats.a + stats.b %}
+<header class="page-head">
+  <div>
+    <div class="kicker">01 / Overview</div>
+    <h1>仪表盘</h1>
+  </div>
+  <div class="head-actions">
+    <form method="get">
+      <select name="project" class="select-sm" onchange="this.form.submit()" aria-label="项目">
+        <option value="">全部项目</option>
+        {% for p in projects %}<option value="{{ p }}" {{ 'selected' if p == project }}>{{ p }}</option>{% endfor %}
+      </select>
+    </form>
+    <a href="/leads.csv?project={{ pq }}" class="btn">{{ icon('download') }}导出 CSV</a>
+    <a href="/collect" class="btn btn-primary">{{ icon('plus') }}新建采集</a>
+  </div>
+</header>
+
+<section class="metrics crop">
+  <a class="metric is-a" href="/leads?tier=A&project={{ pq }}">
+    <span class="metric-go">{{ icon('arrow') }}</span>
+    <div class="metric-label"><span>A 级线索</span><span class="code">TIER-A</span></div>
+    <div class="metric-num">{{ stats.a }}</div>
+    <div class="metric-sub">直接问合作、要联系方式、想买</div>
+  </a>
+  <a class="metric is-b" href="/leads?tier=B&project={{ pq }}">
+    <span class="metric-go">{{ icon('arrow') }}</span>
+    <div class="metric-label"><span>B 级线索</span><span class="code">TIER-B</span></div>
+    <div class="metric-num">{{ stats.b }}</div>
+    <div class="metric-sub">问价格、问效果、问靠不靠谱</div>
+  </a>
+  <div class="metric">
+    <div class="metric-label"><span>已跟进</span><span class="code">FOLLOW-UP</span></div>
+    <div class="metric-num">{{ stats.contacted }}</div>
+    <div class="meter"><i style="width: {{ (100 * stats.contacted / total)|round(1) if total else 0 }}%"></i></div>
+    <div class="metric-sub">跟进率 <b>{{ '%.0f'|format(100 * stats.contacted / total) if total else 0 }}%</b> · 已转化 <b>{{ stats.converted }}</b></div>
+  </div>
+  <div class="metric">
+    <div class="metric-label"><span>已抓评论</span><span class="code">COMMENTS</span></div>
+    <div class="metric-num">{{ stats.comments }}</div>
+    <div class="metric-sub">来自 <b>{{ stats.videos }}</b> 个作品 · 线索率 <b>{{ '%.1f'|format(100 * total / stats.comments) if stats.comments else 0 }}%</b></div>
+  </div>
+</section>
+
+{% if stats.a_new %}
+<a class="alert-strip" href="/leads?tier=A&status=未联系&project={{ pq }}">
+  {{ icon('ping') }}
+  <span class="msg">有 <b>{{ stats.a_new }}</b> 条 A 级线索还没联系，越早私信转化率越高</span>
+  <span class="go">去处理 {{ icon('arrow') }}</span>
+</a>
+{% endif %}
+
+<div class="grid-main" style="margin-bottom:18px">
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">{{ icon('grid') }}各平台产出 <span class="code">BY PLATFORM</span></div>
+      <span class="panel-meta">{{ by_platform|length }} 个平台</span>
+    </div>
+    {% set maxl = (by_platform|map(attribute='leads')|max) if by_platform else 0 %}
+    <div class="table-wrap">
+    <table class="data-table compact">
+      <thead><tr><th>平台</th><th class="r hide-sm">作品</th><th class="r">评论</th><th>线索</th><th class="r">线索率</th></tr></thead>
+      <tbody>
+      {% for r in by_platform %}
+        <tr>
+          <td><span class="platform platform-{{ r.platform }}">{{ LABELS.get(r.platform, r.platform) }}</span></td>
+          <td class="num r hide-sm">{{ r.videos }}</td>
+          <td class="num r">{{ r.comments }}</td>
+          <td><div class="bar"><div class="bar-track"><i style="width: {{ (100 * r.leads / maxl)|round(1) if maxl else 0 }}%"></i></div><span class="bar-val">{{ r.leads }}</span></div></td>
+          <td class="num r hi">{{ '%.1f'|format(100 * r.leads / r.comments) if r.comments else '–' }}{{ '%' if r.comments }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="empty">还没有数据 · <a href="/collect" class="panel-link">先建一个采集任务</a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <div class="stack" style="margin-bottom:0">
+  <section class="panel" style="margin-bottom:0">
+    <div class="panel-head">
+      <div class="panel-title">{{ icon('list') }}最近任务 <span class="code">TASKS</span></div>
+      <a href="/collect" class="panel-link">全部 {{ icon('arrow') }}</a>
+    </div>
+    <div class="table-wrap">
+    <table class="data-table compact">
+      <thead><tr><th>#</th><th>关键词</th><th>状态</th><th class="r">A / B</th></tr></thead>
+      <tbody>
+      {% for t in tasks %}
+        <tr>
+          <td class="num">{{ '%03d'|format(t.id) }}</td>
+          <td class="cell-wrap">{{ (t.keywords or '').replace('\n', '，')[:28] }}<span class="cell-sub">{{ t.project }}</span></td>
+          <td><span class="st st-{{ t.status }}">{{ t.status }}</span></td>
+          <td class="num r nw"><span class="tA">{{ t.leads_a }}</span> / <span class="tB">{{ t.leads_b }}</span></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="empty">暂无任务</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  <section class="panel" style="margin-bottom:0">
+    <div class="panel-head">
+      <div class="panel-title">{{ icon('grid') }}客户地区 <span class="code">REGIONS</span></div>
+      <a href="/leads" class="panel-link">按地区筛线索 {{ icon('arrow') }}</a>
+    </div>
+    <div class="panel-body region-stats">
+      {% for r in by_region %}
+      <a class="region-row plain-link" href="/leads?province={{ r.province|urlencode }}&project={{ pq }}">
+        <span class="region-name">{{ r.province }}</span>
+        <span class="bar-track"><i style="width: {{ (100 * r.n / by_region[0].n)|round(1) }}%"></i></span>
+        <span class="region-n">{{ r.n }}</span>
+        <span class="region-pct">{{ '%.0f'|format(100 * r.n / region_total) }}%</span>
+      </a>
+      {% else %}
+      <p class="muted" style="font-size:12.5px">暂无地区数据。新采集的线索会按评论者的 IP 属地归类。</p>
+      {% endfor %}
+    </div>
+  </section>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">{{ icon('target') }}最新线索 <span class="code">RECENT LEADS</span></div>
+    <a href="/leads?project={{ pq }}" class="panel-link">全部线索 {{ icon('arrow') }}</a>
+  </div>
+  {% include "_lead_table.html" %}
+</section>
+{% endblock %}

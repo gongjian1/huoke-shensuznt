@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}接口 Key - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">Admin / API Keys</div>
+    <h1>管理后台</h1>
+  </div>
+</header>
+{% include "_admin_tabs.html" %}
+
+{% if err == 'not_configured' %}
+<section class="panel">
+  <div class="panel-head"><div class="panel-title">{{ icon('key') }}还没有连上中转网关 <span class="code">SETUP</span></div></div>
+  <div class="panel-body">
+    <p class="panel-note">这里用来给别人发「子 Key」：真正的数据源 Key 只放在网关里，别人拿子 Key 来用，你可以限制可用评论条数、到期时间，随时停用。需要先在服务器上配置：</p>
+    <ol class="gw-steps">
+      <li>网关和获客系统的环境文件里，各加一行<b>同一个</b>令牌：<span class="mono">GATEWAY_ADMIN_TOKEN=一串随机字符</span></li>
+      <li>重启两个服务：<span class="mono">systemctl restart huoke huoke-gateway</span></li>
+      <li>刷新本页。</li>
+    </ol>
+    <p class="panel-note" style="margin-bottom:0">网关由作者自己部署，不在公开仓库里；没有部署网关的话，这一页用不上。</p>
+  </div>
+</section>
+{% elif err %}
+<div class="flash err">连不上中转网关（{{ err if err != 'unreachable' else '网关没有响应' }}）。请在服务器上检查：<span class="mono">systemctl status huoke-gateway</span></div>
+{% else %}
+
+{% if new_key %}
+<section class="panel keybox">
+  <div class="panel-head"><div class="panel-title">{{ icon('check') }}已创建{{ '：' ~ new_key.note if new_key.note }} <span class="code">NEW KEY</span></div></div>
+  <div class="panel-body">
+    <div class="flash err" style="margin-bottom:14px">这个 Key <b>只显示这一次</b>，离开本页就看不到了，请现在复制发给对方。丢了只能重新发一个。</div>
+    <div class="keybox-row">
+      <code id="newKey">{{ new_key.key }}</code>
+      <button type="button" class="btn-sm accent" data-copy-text="newKey">{{ icon('copy') }}复制 Key</button>
+    </div>
+    <div class="keybox-row">
+      <code id="gwUrl">{{ public_url }}</code>
+      <button type="button" class="btn-sm" data-copy-text="gwUrl">{{ icon('copy') }}复制地址</button>
+    </div>
+    <p class="panel-note" style="margin:14px 0 0">发给对方的话：登录你的获客系统 → 管理后台 → 系统设置，「数据接口 Key」粘贴上面的 Key，「接口地址」粘贴上面的地址，保存即可。{{ '额度 ' ~ new_key.quota ~ ' 条评论' if new_key.quota else '不限额度' }}{{ '，' ~ new_key.days ~ ' 天内有效' if new_key.days }}。</p>
+  </div>
+</section>
+{% endif %}
+
+{% if not upstream_ok %}
+<div class="flash err">网关还没有配置真正的数据源 Key，发出去的子 Key 现在调不通。请在网关的环境文件里设置上游 Key。</div>
+{% endif %}
+
+<form method="post" class="price-bar">
+  <input type="hidden" name="action" value="price">
+  <span>批发价：每 1000 条评论 ¥</span>
+  <input name="price" id="gwPrice" class="mono" value="{{ price_k }}" inputmode="decimal" size="5" aria-label="每 1000 条评论的批发价（元）">
+  <button class="btn-sm">保存</button>
+  <span class="muted">下面发 Key 时，填收款金额会自动算出评论条数</span>
+</form>
+
+<form method="post" class="panel">
+  <input type="hidden" name="action" value="create">
+  <div class="panel-head"><div class="panel-title">{{ icon('plus') }}发一个新的子 Key <span class="code">CREATE</span></div></div>
+  <div class="panel-body">
+    <div class="gw-form">
+      <label class="adv-label">给谁用 <small class="muted">备注，方便你自己认</small>
+        <input name="note" maxlength="60" placeholder="例如：张三 / 长沙某公司" autocomplete="off"></label>
+      <label class="adv-label">收款金额（元） <small class="muted">和右边条数互相换算</small>
+        <input id="gwYuan" class="mono" inputmode="decimal" placeholder="例如 50" autocomplete="off"></label>
+      <label class="adv-label">可用评论条数 <small class="muted">取到数据才扣</small>
+        <input name="quota" class="mono" inputmode="numeric" placeholder="例如 5000" value="5000" autocomplete="off" id="gwQuota"></label>
+      <label class="adv-label">有效天数 <small class="muted">不填 = 不过期</small>
+        <input name="days" class="mono" inputmode="numeric" placeholder="例如 30" value="30" autocomplete="off"></label>
+      <label class="adv-label">每分钟最多 <small class="muted">次请求</small>
+        <input name="rate" class="mono" inputmode="numeric" value="120" autocomplete="off"></label>
+    </div>
+    <label class="check-line"><input type="checkbox" name="unlimited" id="gwUnlimited"> 不限额度 <small>只建议给你自己人。仍然受每分钟限速约束。</small></label>
+    <p class="panel-note" style="margin:12px 0 0">换算：筛选 1000 条评论 ≈ 扣 1000 条额度（按平均每 1000 条评论约 500 次请求折算，每次普通请求扣 2 条）。视频号、公众号、微信搜索每次请求成本是抖音的约 10 倍，每次扣 <b>20 条</b>，所以同样的额度能筛的微信评论少一些。</p>
+    <div class="submit-row" style="margin-top:14px"><button class="btn btn-primary">{{ icon('key') }}生成子 Key</button></div>
+  </div>
+</form>
+
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">{{ icon('list') }}已发出的子 Key <span class="code">KEYS</span></div>
+    <span class="panel-meta">{{ keys|length }} 个</span>
+  </div>
+  <div class="table-wrap">
+  <table class="data-table gw-table">
+    <thead><tr><th>备注 / Key</th><th>剩余 / 额度（条）</th><th class="r">近 7 天扣</th><th>到期</th><th>最近使用</th><th>状态</th><th></th></tr></thead>
+    <tbody>
+      {% for k in keys %}
+      <tr>
+        <td><b>{{ k.note or '（无备注）' }}</b><div class="muted mono">{{ k.prefix }}… · #{{ k.id }}</div></td>
+        <td>
+          {% if k.quota is none %}<span class="mono">不限</span>
+          {% else %}
+          <div class="bar"><div class="bar-track"><i style="width:{{ (100 * k.left / k.quota)|round|int if k.quota else 0 }}%"></i></div></div>
+          <div class="mono" style="margin-top:3px"><b>{{ k.left }}</b> <span class="muted">/ {{ k.quota }}</span></div>
+          {% endif %}
+        </td>
+        <td class="num r">{{ k.week_calls }} <span class="muted">条</span></td>
+        <td class="nw">{% if k.expires_at %}{{ k.expires_at | int | datefmt }}{% if k.expired %} <span class="badge badge-err">已过期</span>{% endif %}{% else %}<span class="muted">不过期</span>{% endif %}</td>
+        <td class="nw muted">{{ k.last_used_at | int | datefmt if k.last_used_at else '从未' }}</td>
+        <td class="nw">{% if not k.enabled %}<span class="badge badge-err">已停用</span>{% else %}<span class="badge">启用</span>{% endif %}</td>
+        <td class="gw-act">
+          <div class="mini-form">
+            {% if k.quota is not none %}
+            <form method="post" class="pair"><input type="hidden" name="id" value="{{ k.id }}"><input name="n" class="mono" inputmode="numeric" placeholder="条数" aria-label="加评论条数"><button class="btn-sm" name="action" value="topup">加额度</button></form>
+            {% endif %}
+            {% if k.expires_at %}
+            <form method="post" class="pair"><input type="hidden" name="id" value="{{ k.id }}"><input name="n" class="mono" inputmode="numeric" placeholder="天数" aria-label="续期天数"><button class="btn-sm" name="action" value="extend">续期</button></form>
+            {% endif %}
+            <form method="post" class="pair"><input type="hidden" name="id" value="{{ k.id }}">
+              <button class="btn-sm" name="action" value="{{ 'disable' if k.enabled else 'enable' }}">{{ '停用' if k.enabled else '启用' }}</button>
+              <button class="btn-sm danger" name="action" value="delete" onclick="return confirm('删除后这个 Key 立刻失效，而且无法恢复。确定？')">删除</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty">还没有发过子 Key。上面填好备注和评论条数，点「生成子 Key」。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+<p class="panel-note">停用 / 删除后立刻生效。对方用的是你的网关地址 <span class="mono">{{ public_url }}</span>，看不到真正的数据源 Key，也看不到你的账户余额。</p>
+{% endif %}
+<div class="toast" id="toast"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const q = document.getElementById('gwQuota'), u = document.getElementById('gwUnlimited');
+const y = document.getElementById('gwYuan'), pr = document.getElementById('gwPrice');
+const perK = () => parseFloat(pr && pr.value) || 10;
+if (y && q) {
+  const fromQuota = () => { const n = parseFloat(q.value); y.value = n > 0 ? +(n / 1000 * perK()).toFixed(2) : ''; };
+  const fromYuan = () => { const m = parseFloat(y.value); q.value = m > 0 ? Math.round(m / perK() * 1000) : ''; };
+  q.addEventListener('input', fromQuota); y.addEventListener('input', fromYuan);
+  if (pr) pr.addEventListener('input', fromQuota);
+  fromQuota();
+}
+if (u) u.onchange = () => { q.disabled = u.checked; if (y) y.disabled = u.checked; };
+document.querySelectorAll('[data-copy-text]').forEach(b => b.onclick = async () => {
+  const text = document.getElementById(b.dataset.copyText).textContent.trim();
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) { const r = document.createRange(); r.selectNode(document.getElementById(b.dataset.copyText)); getSelection().removeAllRanges(); getSelection().addRange(r); document.execCommand('copy'); }
+  const old = b.lastChild.textContent; b.lastChild.textContent = '已复制';
+  setTimeout(() => b.lastChild.textContent = old, 1500);
+});
+</script>
+{% endblock %}

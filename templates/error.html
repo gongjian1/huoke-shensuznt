@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ '没有权限' if code == 403 else '页面不存在' }} - 获客系统{% endblock %}
+{% block content %}
+<section class="panel error-panel">
+  <div class="panel-body">
+    <div class="kicker">Error {{ code }}</div>
+    {% if code == 403 %}
+      <h1>{{ icon('shield') }}这个页面只有管理员能打开</h1>
+      <p class="lead-text">你现在登录的是「<b>{{ me.nickname or me.phone }}</b>」（{{ me.phone }}），是普通用户账号。<br>
+        要进管理后台，请先退出，再用管理员账号 <b class="mono">admin</b> 登录。</p>
+      <div class="head-actions" style="margin-top:22px">
+        <a class="btn btn-primary btn-lg" href="/logout">{{ icon('logout') }}退出，换管理员账号登录</a>
+        <a class="btn btn-lg" href="/">返回首页</a>
+      </div>
+    {% else %}
+      <h1>页面不存在</h1>
+      <p class="lead-text">链接可能写错了，或者这条内容已经被删除。</p>
+      <div class="head-actions" style="margin-top:22px"><a class="btn btn-primary btn-lg" href="/">返回首页</a></div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

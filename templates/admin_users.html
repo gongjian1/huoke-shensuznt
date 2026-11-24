@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}用户管理 - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">Admin / Users</div>
+    <h1>管理后台</h1>
+  </div>
+</header>
+{% include "_admin_tabs.html" %}
+
+<section class="metrics crop">
+  <a class="metric" href="/admin">
+    <div class="metric-label"><span>注册用户</span><span class="code">USERS</span></div>
+    <div class="metric-num">{{ stats.users }}</div>
+    <div class="metric-sub">待审核 <b class="{{ 'tB' if stats.pending }}">{{ stats.pending }}</b> 个</div>
+  </a>
+  <div class="metric is-a">
+    <div class="metric-label"><span>用户剩余评论额度</span><span class="code">BALANCE</span></div>
+    <div class="metric-num">{{ pts(stats.balance) }}</div>
+    <div class="metric-sub">所有用户剩余额度合计（条）</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label"><span>累计充值</span><span class="code">RECHARGED</span></div>
+    <div class="metric-num">{{ pts(stats.recharged) }}</div>
+    <div class="metric-sub">累计消耗 <b>{{ pts(stats.spent) }}</b></div>
+  </div>
+  <div class="metric">
+    <div class="metric-label"><span>今日消耗</span><span class="code">TODAY</span></div>
+    <div class="metric-num">{{ pts(stats.spent_today) }}</div>
+    <div class="metric-sub">数据接口余额 <b id="balance2">—</b></div>
+  </div>
+</section>
+
+{% if stats.pending %}
+<a class="alert-strip" href="/admin?status=待审核">
+  {{ icon('ping') }}
+  <span class="msg">有 <b>{{ stats.pending }}</b> 个新注册用户等待审核</span>
+  <span class="go">去审核 {{ icon('arrow') }}</span>
+</a>
+{% endif %}
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <div class="search-field">{{ icon('search') }}<input type="text" name="q" value="{{ q }}" placeholder="搜手机号 / 称呼 / 备注" aria-label="搜索"></div>
+    <select name="status" aria-label="状态"><option value="">全部状态</option>
+      {% for s in USER_STATUSES %}<option value="{{ s }}" {{ 'selected' if status == s }}>{{ s }}</option>{% endfor %}</select>
+    <button class="btn btn-primary">{{ icon('filter') }}筛选</button>
+    {% if q or status %}<a href="/admin" class="btn btn-ghost">{{ icon('refresh') }}重置</a>{% endif %}
+  </form>
+  <div class="toolbar-foot"><span>USERS <b>{{ users|length }}</b></span><span>待审核的排在最前</span></div>
+</section>
+
+<div class="table-wrap">
+<table class="data-table user-table">
+  <thead><tr>
+    <th>用户</th><th>状态</th><th class="r">剩余额度</th><th class="r hide-md">充值 / 消耗</th>
+    <th class="r hide-md">任务 / 线索</th><th class="hide-md">注册 / 最近登录</th><th class="r">操作</th>
+  </tr></thead>
+  <tbody>
+  {% for u in users %}
+  <tr>
+    <td class="nw">
+      <a class="plain-link" href="/admin/users/{{ u.id }}"><strong>{{ u.nickname or '—' }}</strong></a>
+      {% if u.is_admin %}<span class="tag">管理员</span>{% endif %}
+      <span class="cell-sub">{{ u.phone }}</span>
+      {% if u.note %}<span class="cell-sub">{{ u.note[:24] }}</span>{% endif %}
+    </td>
+    <td><span class="ust ust-{{ u.status }}">{{ u.status }}</span></td>
+    <td class="num r hi">{{ '—' if u.is_admin else pts(u.balance) }}</td>
+    <td class="num r hide-md">{{ pts(u.total_recharged) }} / {{ pts(u.total_spent) }}</td>
+    <td class="num r hide-md">{{ u.task_count }} / {{ u.lead_count }}</td>
+    <td class="num nw hide-md"><small>{{ (u.created_at or '')[:10] }}<br><span class="muted">{{ (u.last_login or '从未登录')[:16] }}</span></small></td>
+    <td class="r nw">
+      {% if u.status == '待审核' %}
+      <form method="post" action="/admin/users/{{ u.id }}" class="inline">
+        <input type="hidden" name="action" value="status"><input type="hidden" name="status" value="正常">
+        <input type="hidden" name="next" value="{{ request.full_path }}">
+        <button class="btn-sm accent">{{ icon('check') }}通过</button>
+      </form>
+      {% endif %}
+      <a class="btn-sm" href="/admin/users/{{ u.id }}">{{ icon('coin') }}{{ '充值 / 管理' if not u.is_admin else '查看' }}</a>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="empty">没有符合条件的用户</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+fetch('/api/balance').then(r => r.json()).then(d => {
+  document.getElementById('balance2').textContent = d.balance == null ? (d.unit === 'comments' ? '不限额度' : '读取失败') : (d.unit === 'comments' ? '约 ' + Number(d.balance).toLocaleString() + ' 条评论' : '$' + Number(d.balance).toFixed(2));
+}).catch(() => {});
+</script>
+{% endblock %}

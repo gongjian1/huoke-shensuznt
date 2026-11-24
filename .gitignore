@@ -1,0 +1,28 @@
+# 运行时数据：客户线索、账户、余额、加密后的 Key 都在数据库里，绝不能上传
+*.db
+*.db-wal
+*.db-shm
+*.sqlite*
+backup/
+media/
+
+# 密钥与部署信息
+.env
+*.env
+*.pem
+*.key
+登录密码.txt
+*密码*
+deploy.local.sh
+
+# Python / 编辑器
+__pycache__/
+*.pyc
+venv/
+.venv/
+.claude/
+.vscode/
+.idea/
+
+# 私有：真实数据源的对应关系、网关代码，永远不要提交
+private/

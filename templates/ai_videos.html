@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}AI 视频 - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">AI Studio / Video</div>
+    <h1>AI 视频</h1>
+    <p class="lead-text">用文字或配图生成短视频。费用由你自己的阿里云账号结算。</p>
+  </div>
+  <div class="head-actions"><a class="btn btn-primary" href="/ai-videos/new">{{ icon('play') }}新建视频</a></div>
+</header>
+{% include "_ai_tabs.html" %}
+
+{% if not ai_ready %}<div class="flash err">先在「我的账户」里填你自己的阿里云 API Key，才能生成视频。<a href="/account" style="margin-left:8px">去填写</a></div>{% endif %}
+
+<div class="feed cfeed">
+  {% for v in rows %}
+  <a class="post-card creation-card plain-link" href="/ai-videos/{{ v.id }}">
+    <span class="post-cover vcover">
+      <span class="poster"><i>{{ '图生视频' if v.mode == 'i2v' else '文生视频' }}</i><b>{{ v.prompt[:42] }}</b></span>
+      {% if v.video_file %}<video src="/media/{{ v.video_file }}#t=0.1" preload="metadata" muted playsinline></video>{% endif %}
+      <span class="post-badges">
+        {% if v.status == '生成中' %}<span class="badge-new">生成中</span>{% elif v.status == '失败' %}<span class="badge badge-err">失败</span>{% endif %}
+        <span class="badge">{{ v.duration }} 秒</span>
+      </span>
+    </span>
+    <span class="post-body">
+      <span class="post-title">{{ v.prompt[:60] }}</span>
+      <span class="post-meta"><span>{{ v.resolution }} · {{ v.ratio }}</span><span>{{ ago(v.created_at) }}</span></span>
+    </span>
+  </a>
+  {% else %}
+  <p class="empty" style="grid-column:1/-1">还没有视频。<a href="/ai-videos/new" style="color:var(--lime);margin-left:4px">新建一条</a>，或者在「图文创作」的配图下面点「做成视频」。</p>
+  {% endfor %}
+</div>
+
+{% if pages > 1 %}
+<nav class="pager" aria-label="分页">
+  {% if page > 1 %}<a class="btn" href="{{ qs(page=page - 1) }}">上一页</a>{% else %}<span class="btn is-off">上一页</span>{% endif %}
+  <span class="pager-info">{{ page }} / {{ pages }}</span>
+  {% if page < pages %}<a class="btn" href="{{ qs(page=page + 1) }}">下一页</a>{% else %}<span class="btn is-off">下一页</span>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

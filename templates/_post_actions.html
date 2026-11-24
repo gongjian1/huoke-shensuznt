@@ -1,0 +1,15 @@
+<script>
+function toast(text, ok) {
+  const t = document.getElementById('toast');
+  t.textContent = text; t.className = 'toast show ' + (ok ? 'ok' : 'err');
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', 3200);
+}
+document.querySelectorAll('[data-grab]').forEach(b => b.onclick = async () => {
+  b.disabled = true;
+  const d = await postJSON('/api/tasks/manual', {
+    platform: b.dataset.grab, links: b.dataset.id, project: b.dataset.project || ('对标·' + (b.dataset.name || '作品')), comments_per_post: 100,
+  }).catch(() => ({ok: false, message: '网络出错，请重试'}));
+  b.disabled = false;
+  toast(d.ok ? `已开始抓评论（任务 #${d.task_id}），去「采集任务」看进度` : d.message, d.ok);
+});
+</script>

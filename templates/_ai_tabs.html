@@ -1,0 +1,4 @@
+<nav class="tabs">
+  <a href="/creations" class="{{ 'active' if request.path.startswith('/creations') or request.path.startswith('/create') }}">{{ icon('image') }}图文创作</a>
+  <a href="/ai-videos" class="{{ 'active' if request.path.startswith('/ai-videos') }}">{{ icon('film') }}AI 视频</a>
+</nav>

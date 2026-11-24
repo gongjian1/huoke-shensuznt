@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% block title %}采集任务 - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">02 / Collect</div>
+    <h1>采集任务</h1>
+    <p class="lead-text">输入任何行业的关键词，选平台，系统自动搜作品、抓评论、按意向词筛出线索。</p>
+  </div>
+</header>
+
+<div class="grid-main" style="margin-bottom:18px">
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">{{ icon('scan') }}关键词采集 <span class="code">SEARCH MODE</span></div>
+      <span class="panel-meta hide-sm">自动搜索 / 抓评论 / 分级</span>
+    </div>
+    <div class="panel-body">
+      <div class="field">
+        <label class="field-label" for="project"><span class="step">01</span>项目名称 <small>用来区分不同业务，线索可按项目筛选</small></label>
+        <input id="project" list="projectList" placeholder="例如：充电桩、装修、教培、餐饮加盟" value="{{ projects[0] if projects|length == 1 else '' }}">
+        <datalist id="projectList">{% for p in projects %}<option value="{{ p }}">{% endfor %}</datalist>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="keywords"><span class="step">02</span>搜索关键词 <small>一行一个，或用逗号隔开</small></label>
+        <textarea id="keywords" rows="4" placeholder="充电桩加盟&#10;小区充电桩&#10;新能源创业项目"></textarea>
+        {% if recent_kw %}
+        <div class="chips"><span class="chips-label">RECENT</span>
+          {% for w in recent_kw %}<button type="button" class="chip" data-kw="{{ w }}">{{ w }}</button>{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        <div class="field-label"><span class="step">03</span>平台
+          <span class="link-btns"><a href="#" id="pickAll">全选</a><a href="#" id="pickCheap">非微信</a><a href="#" id="pickNone">清空</a></span>
+        </div>
+        <div class="platform-grid">
+          {% for key, p in PLATFORMS.items() %}
+          {% set h = health.get(key) %}
+          <label class="pf {{ 'disabled' if not p.searchable }} {{ 'unhealthy' if h and not h.ok }}" title="{{ p.hint }}">
+            <input type="checkbox" name="pf" value="{{ key }}" {{ 'disabled' if not p.searchable }}
+                   {{ 'checked' if key in ('douyin','xiaohongshu','kuaishou') }}>
+            <span class="platform platform-{{ key }}">{{ p.label }}</span>
+            {% if p.supports_replies %}<span class="pf-tag" title="支持抓取楼中楼回复">含回复</span>{% endif %}
+            {% if h and not h.ok %}<small class="pf-warn">接口异常 · {{ h.at[5:] }} 搜索失败，可先不选</small>
+            {% elif p.hint %}<small>{{ p.hint }}</small>{% endif %}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-label"><span class="step">04</span>抓取深度 <small>作品越多、评论越多，线索越全，消耗的评论额度也越多</small></div>
+        <div class="seg depth">
+          {% for k, label, n, c in [('fast', '快速', 5, 100), ('std', '标准', 10, 100), ('deep', '深度', 20, 200)] %}
+          <label class="seg-item"><input type="radio" name="depth" value="{{ k }}" data-n="{{ n }}" data-c="{{ c }}" {{ 'checked' if loop.first }}>
+            <span><b>{{ label }}</b><small>每词每平台 {{ n }} 个作品 · 每个最多 {{ c }} 条</small></span></label>
+          {% endfor %}
+          <label class="seg-item"><input type="radio" name="depth" value="custom"><span><b>自定义</b><small>在高级选项里设置</small></span></label>
+        </div>
+        <label class="check-line"><input type="checkbox" id="fetchReplies" checked>
+          <span>抓取楼中楼回复 <small>很多"怎么联系""多少钱"藏在回复里，开启后线索更全（回复也按评论计费）</small></span></label>
+        <label class="check-line"><input type="checkbox" id="skipSeen" checked>
+          <span>跳过已采集过的作品 <small>搜到你以前采过的作品就直接跳过，改采新的，不重复扣额度。想刷新旧作品的新评论时，取消勾选</small></span></label>
+      </div>
+
+      <div class="field">
+        <div class="field-label"><span class="step">05</span>作品发布时间 <small>只抓这段时间内发布的作品，太旧的作品评论区早就没人了</small></div>
+        <div class="seg">
+          {% for days, label in AGE_CHOICES %}
+          <label class="seg-item"><input type="radio" name="age" value="{{ days }}" {{ 'checked' if days == DEFAULT_AGE_DAYS }}><span><b>{{ label }}</b></span></label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-label"><span class="step">06</span>客户地区 <small id="regionSummary">不限地区</small>
+          <span class="link-btns"><a href="#" id="regionToggle">选择地区</a></span></div>
+        <div class="region-box" id="regionBox" hidden>
+          <div class="region-groups">
+            <span class="chips-label">快速选择</span>
+            {% for name, members in REGION_GROUPS %}<button type="button" class="chip" data-group="{{ members|join(',') }}">{{ name }}</button>{% endfor %}
+            <button type="button" class="chip" id="regionClear">清空</button>
+          </div>
+          <div class="region-grid">
+            {% for r in PROVINCES + [OVERSEAS] %}<label class="rg"><input type="checkbox" name="rg" value="{{ r }}"><span>{{ r }}</span></label>{% endfor %}
+          </div>
+          <label class="check-line"><input type="checkbox" id="keepUnknown" checked>
+            <span>也保留没有地区信息的评论 <small>小红书部分评论、西瓜、皮皮虾不显示 IP 属地，不勾选这些就全被筛掉了</small></span></label>
+          <p class="panel-note" style="margin:10px 0 0">地区是评论者的 IP 属地，只用来筛选线索。评论照常抓取、照常计费，筛掉的评论不会变成线索。</p>
+        </div>
+      </div>
+
+      <details class="advanced" id="advanced">
+        <summary>高级选项</summary>
+        <div class="advanced-body">
+          <div class="adv-grid">
+            <label>每个词每个平台取几个作品<input type="number" id="postsPer" value="5" min="1" max="30"></label>
+            <label>每个作品最多抓几条评论<input type="number" id="commentsPer" value="100" min="10" max="500" step="10"></label>
+            <label>作品至少有几条评论才抓<input type="number" id="minComments" value="3" min="0"></label>
+          </div>
+          <label class="field-label" for="extraIntent">本次额外意向词 <small>只对这次任务生效；长期用的词请到{% if me.is_admin %}「系统设置」{% else %}<a href="/intent" style="color:var(--lime)">「我的意向词」</a>{% endif %}设置</small></label>
+          <textarea id="extraIntent" rows="2" placeholder="例如：想装、有场地、物业"></textarea>
+        </div>
+      </details>
+
+      <div class="estimate" id="estimate"></div>
+      <p class="price-line">{{ icon('coin') }}{% if me.is_admin %}管理员采集不扣额度{% else %}收费：每抓到 1 条<b>新</b>评论扣 {{ prices.normal }} 条额度（视频号 / 公众号每条扣 {{ prices.wechat }} 条），搜不到、没评论、重复的不扣 · <a href="/account">收费说明</a>{% endif %}</p>
+      <div class="submit-row">
+        <button class="btn btn-primary btn-lg" id="startSearch">{{ icon('scan') }}开始采集</button>
+        <div class="form-msg" id="searchMsg"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">{{ icon('link') }}手动添加作品 <span class="code">MANUAL</span></div>
+    </div>
+    <div class="panel-body">
+      <p class="panel-note">看到同行的好作品，直接把链接贴进来抓评论。今日头条只能用这种方式。</p>
+
+      <div class="field">
+        <label class="field-label" for="mPlatform">平台</label>
+        <select id="mPlatform">
+          {% for key, p in PLATFORMS.items() %}<option value="{{ key }}" data-hint="{{ p.id_hint }}">{{ p.label }}</option>{% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="mLinks">链接或 ID <small id="mHint"></small></label>
+        <textarea id="mLinks" rows="5" class="mono" placeholder="一行一个"></textarea>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="mProject">项目名称</label>
+        <input id="mProject" list="projectList" placeholder="例如：充电桩">
+      </div>
+
+      <div class="adv-grid">
+        <label>每个作品最多抓几条评论<input type="number" id="mComments" value="100" min="10" max="500" step="10"></label>
+      </div>
+      <label class="check-line" style="margin:-4px 0 4px"><input type="checkbox" id="mReplies" checked><span>抓取楼中楼回复</span></label>
+      <div class="estimate" id="mEstimate"></div>
+      <div class="submit-row">
+        <button class="btn btn-primary" id="startManual">{{ icon('link') }}抓取评论</button>
+        <div class="form-msg" id="manualMsg"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">{{ icon('list') }}任务记录 <span class="code">TASK LOG</span></div>
+    <span class="panel-meta" id="refreshNote"></span>
+  </div>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr>
+      <th class="hide-sm">#</th><th class="hide-sm">时间</th><th>项目</th><th>关键词 / 链接</th><th class="hide-sm">平台</th><th>状态</th>
+      <th class="r hide-sm">作品</th><th class="r hide-sm">评论</th><th class="r">A</th><th class="r">B</th><th class="r hide-sm">花费</th><th></th>
+    </tr></thead>
+    <tbody id="taskBody"></tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LABELS = {{ LABELS|tojson }};
+const ICON_STOP = {{ icon('stop')|string|tojson }};
+const ICON_ARROW = {{ icon('arrow')|string|tojson }};
+const ICON_REFRESH = {{ icon('refresh')|string|tojson }};
+const IS_ADMIN = {{ 'true' if me.is_admin else 'false' }};
+const PRICE = {normal: {{ prices.normal }}, wechat: {{ prices.wechat }}};
+let BALANCE = {{ me.balance }};
+const pts = c => Math.round(+c || 0).toLocaleString();
+const priceOf = p => p.startsWith('wechat') ? PRICE.wechat : PRICE.normal;
+function costLine(maxUnits) {
+  if (IS_ADMIN) return '<span>管理员 · 不扣额度</span>';
+  const warn = maxUnits > BALANCE ? `<span class="warn">· 剩余 ${pts(BALANCE)} 条，不够时会自动少抓</span>` : `<span>· 剩余 ${pts(BALANCE)} 条</span>`;
+  return `<span>最多消耗</span><b>${pts(maxUnits)}</b><span>条评论额度</span>${warn}`;
+}
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function keywordsList() {
+  return $('keywords').value.split(/[\n,，]/).map(s => s.trim()).filter(Boolean);
+}
+function pickedPlatforms() {
+  return [...document.querySelectorAll('input[name=pf]:checked')].map(i => i.value);
+}
+function refreshEstimate() {
+  const pf = pickedPlatforms(), k = keywordsList().length, p = pf.length, n = +$('postsPer').value || 0;
+  const maxCents = k * n * (+$('commentsPer').value || 0) * pf.reduce((s, x) => s + priceOf(x), 0);
+  $('estimate').innerHTML = k && p
+    ? `<span>最多</span><b>${k * p * n}</b><span>个作品 = ${k} 词 × ${p} 平台 × ${n}</span><span class="sep"></span>${costLine(maxCents)}`
+    : '';
+}
+function refreshManualEstimate() {
+  const n = $('mLinks').value.split('\n').filter(s => s.trim()).length;
+  $('mEstimate').innerHTML = n ? `<span>${n} 个作品</span><span class="sep"></span>${costLine(n * (+$('mComments').value || 0) * priceOf($('mPlatform').value))}` : '';
+}
+['mLinks', 'mComments'].forEach(id => $(id).addEventListener('input', refreshManualEstimate));
+$('mPlatform').addEventListener('change', refreshManualEstimate);
+document.querySelectorAll('.chip').forEach(c => c.onclick = () => {
+  const list = keywordsList();
+  if (!list.includes(c.dataset.kw)) $('keywords').value = [...list, c.dataset.kw].join('\n');
+  refreshEstimate();
+});
+const setPf = fn => e => { e.preventDefault(); document.querySelectorAll('input[name=pf]:not(:disabled)').forEach(i => i.checked = fn(i.value)); refreshEstimate(); };
+$('pickAll').onclick = setPf(() => true);
+$('pickNone').onclick = setPf(() => false);
+$('pickCheap').onclick = setPf(v => !v.startsWith('wechat'));
+['keywords', 'postsPer', 'commentsPer'].forEach(id => $(id).addEventListener('input', refreshEstimate));
+document.querySelectorAll('input[name=depth]').forEach(r => r.addEventListener('change', () => {
+  if (r.value === 'custom') { $('advanced').open = true; return; }
+  $('postsPer').value = r.dataset.n; $('commentsPer').value = r.dataset.c; refreshEstimate();
+}));
+['postsPer', 'commentsPer'].forEach(id => $(id).addEventListener('input', () => {
+  const m = [...document.querySelectorAll('input[name=depth]')].find(r => r.dataset.n == $('postsPer').value && r.dataset.c == $('commentsPer').value);
+  (m || document.querySelector('input[name=depth][value=custom]')).checked = true;
+}));
+document.querySelectorAll('input[name=pf]').forEach(i => i.addEventListener('change', refreshEstimate));
+refreshEstimate();
+
+const pickedRegions = () => [...document.querySelectorAll('input[name=rg]:checked')].map(i => i.value);
+function refreshRegionSummary() {
+  const r = pickedRegions();
+  $('regionSummary').textContent = r.length ? `已选 ${r.length} 个：${r.slice(0, 4).join('、')}${r.length > 4 ? ' 等' : ''}` : '不限地区';
+  $('regionToggle').textContent = $('regionBox').hidden ? (r.length ? '修改地区' : '选择地区') : '收起';
+}
+$('regionToggle').onclick = e => { e.preventDefault(); $('regionBox').hidden = !$('regionBox').hidden; refreshRegionSummary(); };
+document.querySelectorAll('input[name=rg]').forEach(i => i.addEventListener('change', refreshRegionSummary));
+$('regionClear').onclick = () => { document.querySelectorAll('input[name=rg]').forEach(i => i.checked = false); refreshRegionSummary(); };
+document.querySelectorAll('[data-group]').forEach(b => b.onclick = () => {
+  const boxes = b.dataset.group.split(',').map(v => document.querySelector(`input[name=rg][value="${v}"]`)).filter(Boolean);
+  const all = boxes.every(x => x.checked);
+  boxes.forEach(x => x.checked = !all); refreshRegionSummary();
+});
+refreshRegionSummary();
+
+$('startSearch').onclick = async () => {
+  $('searchMsg').textContent = '';
+  $('startSearch').disabled = true;
+  const d = await postJSON('/api/tasks', {
+    project: $('project').value, keywords: $('keywords').value, platforms: pickedPlatforms(),
+    posts_per_keyword: $('postsPer').value, comments_per_post: $('commentsPer').value,
+    min_comments: $('minComments').value, extra_intent: $('extraIntent').value,
+    fetch_replies: $('fetchReplies').checked, skip_seen: $('skipSeen').checked,
+    max_age_days: document.querySelector('input[name=age]:checked').value,
+    regions: pickedRegions(), keep_unknown_region: $('keepUnknown').checked,
+  });
+  $('startSearch').disabled = false;
+  $('searchMsg').textContent = d.ok ? `任务 #${d.task_id} 已开始，下方可以看进度` : d.message;
+  $('searchMsg').className = 'form-msg ' + (d.ok ? 'ok' : 'err');
+  loadTasks();
+};
+
+const syncHint = () => $('mHint').textContent = $('mPlatform').selectedOptions[0].dataset.hint;
+$('mPlatform').onchange = syncHint; syncHint();
+$('startManual').onclick = async () => {
+  const d = await postJSON('/api/tasks/manual', {
+    platform: $('mPlatform').value, links: $('mLinks').value, project: $('mProject').value,
+    comments_per_post: $('mComments').value, fetch_replies: $('mReplies').checked,
+  });
+  $('manualMsg').textContent = d.ok ? `任务 #${d.task_id} 已开始` : d.message;
+  $('manualMsg').className = 'form-msg ' + (d.ok ? 'ok' : 'err');
+  if (d.ok) { $('mLinks').value = ''; refreshManualEstimate(); }
+  loadTasks();
+};
+
+async function stopTask(id) { await postJSON(`/api/tasks/${id}/stop`); loadTasks(); }
+async function rerunTask(id) {
+  if (!confirm('用同样的设置再搜一遍？如果当时勾选了「跳过已采集过的作品」，只会抓新作品；没勾选的话会重新抓取评论，并按抓到的评论数再次计费（已有线索不会重复）。')) return;
+  const d = await postJSON(`/api/tasks/${id}/rerun`);
+  if (!d.ok) { alert(d.message || '启动失败'); return; }
+  loadTasks();
+}
+const AGE_LABEL = {30: '近 1 个月', 90: '近 3 个月', 180: '近 6 个月', 365: '近 1 年'};
+function taskScope(t) {
+  if (t.mode !== 'search') return '';
+  const rg = (t.regions || '').split(',').filter(Boolean);
+  const parts = [t.max_age_days ? (AGE_LABEL[t.max_age_days] || `近 ${t.max_age_days} 天`) : '时间不限',
+                 rg.length ? (rg.length > 3 ? `${rg.slice(0, 3).join('、')} 等 ${rg.length} 省` : rg.join('、')) : ''].filter(Boolean);
+  return `<span class="cell-sub">${esc(parts.join(' · '))}</span>`;
+}
+
+let timer = null;
+async function loadTasks() {
+  const tasks = await (await fetch('/api/tasks')).json();
+  const running = tasks.some(t => ['进行中', '排队中', '停止中'].includes(t.status));
+  $('taskBody').innerHTML = tasks.map(t => {
+    const api$ = (t.balance_before != null && t.balance_after != null) ? '$' + (t.balance_before - t.balance_after).toFixed(3) : '';
+    const cost = IS_ADMIN ? (api$ || '–') : (t.points_cost ? pts(t.points_cost) + ' 条' : '–');
+    let plog = {};
+    try { plog = JSON.parse(t.platform_log || '{}') || {}; } catch (e) {}
+    const pf = (t.platforms || '').split(',').map(p => {
+      const L = plog[p];
+      if (!L) return `<span class="pl">${esc(LABELS[p] || p)}</span>`;
+      if (L.err && !L.posts) return `<span class="pl bad" title="${esc(L.err)}">${esc(LABELS[p] || p)} 失败</span>`;
+      const why = [L.old ? `跳过了 ${L.old} 个发布时间过旧的作品` : '', L.seen ? `跳过了 ${L.seen} 个以前已采集的作品` : ''].filter(Boolean).join('；');
+      return `<span class="pl" ${why ? `title="${why}"` : ''}>${esc(LABELS[p] || p)} <b>${L.posts}</b>/${L.comments}${L.seen ? ` <small class="muted">跳${L.seen}</small>` : ''}</span>`;
+    }).join('');
+    const kw = (t.keywords || '').split('\n').join('，');
+    const live = ['进行中', '排队中'].includes(t.status);
+    const sub = [
+      t.progress && t.status !== '已完成' ? esc(t.progress) : '',
+      t.errors ? `${t.errors} 次请求失败已跳过` : '',
+    ].filter(Boolean).map(s => `<span class="st-sub">${s}</span>`).join('');
+    return `<tr>
+      <td class="num hide-sm">${String(t.id).padStart(3, '0')}</td>
+      <td class="num nw hide-sm"><small>${esc((t.created_at || '').slice(5, 16))}</small></td>
+      <td class="nw">${esc(t.project)}</td>
+      <td class="cell-wrap">${t.mode === 'manual' ? '<span class="tag">手动</span> ' : ''}${esc(kw).slice(0, 80)}${taskScope(t)}</td>
+      <td class="cell-wrap hide-sm"><div class="pl-list">${pf}</div></td>
+      <td><span class="st st-${esc(t.status)}">${esc(t.status)}</span>${sub}</td>
+      <td class="num r hide-sm">${t.posts}</td><td class="num r hide-sm">${t.comments}</td>
+      <td class="num r"><span class="tA">${t.leads_a}</span></td><td class="num r"><span class="tB">${t.leads_b}</span></td>
+      <td class="num r hide-sm"><small>${cost}</small></td>
+      <td class="r nw">${live ? `<button class="btn-sm danger" onclick="stopTask(${t.id})">${ICON_STOP}停止</button>` : `${t.leads_a + t.leads_b ? `<a class="btn-sm" href="/leads?project=${encodeURIComponent(t.project || '')}">看线索${ICON_ARROW}</a> ` : ''}<button class="btn-sm" onclick="rerunTask(${t.id})" title="用同样的设置再抓一遍">${ICON_REFRESH}再跑</button>`}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="12" class="empty">还没有任务</td></tr>';
+  $('refreshNote').innerHTML = running ? '<span class="state live">LIVE · 每 3 秒刷新</span>' : `${tasks.length} 条记录`;
+  document.querySelector('#startSearch .i-scan').classList.toggle('spin', running);
+  clearTimeout(timer);
+  if (running) timer = setTimeout(loadTasks, 3000);
+  if (!IS_ADMIN) fetch('/api/me').then(r => r.json()).then(d => {
+    BALANCE = d.balance; refreshPoints(); refreshEstimate(); refreshManualEstimate();
+  });
+}
+loadTasks();
+</script>
+{% endblock %}

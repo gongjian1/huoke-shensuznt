@@ -1,0 +1,65 @@
+<section class="panel" id="aiPanel">
+  <div class="panel-head">
+    <div class="panel-title">{{ icon('spark') }}AI 创作 · 我的阿里云 Key <span class="code">BYO KEY</span></div>
+    <span class="panel-meta state {{ 'on' if ai_info.has_key }}">{{ '已设置' if ai_info.has_key else '未设置' }}</span>
+  </div>
+  <div class="panel-body">
+    <p class="panel-note">「仿写」用的是<b>你自己的阿里云百炼账号</b>：文案由通义千问写，配图由千问文生图画。生成的费用由阿里云直接向你收取，我们不加价、不扣评论额度。</p>
+    {% if not ai_info.has_key %}
+    <ol class="steps">
+      <li>打开 <a href="https://bailian.console.aliyun.com/" target="_blank" rel="noopener">阿里云百炼控制台</a>，登录并开通百炼服务（新账号一般有免费额度，以阿里云页面为准）。</li>
+      <li>在控制台左侧找到「API-KEY」，点「创建」，复制生成的 Key（以 <span class="mono">sk-</span> 开头）。</li>
+      <li>把 Key 粘贴到下面保存。我们会先用它发一次最小的请求确认能用。</li>
+    </ol>
+    {% endif %}
+    <div class="field">
+      <label class="adv-label">API Key <small class="muted">{{ '当前 ' ~ ai_info.masked ~ '。要换就粘贴新的，不换留空' if ai_info.has_key else '粘贴你的阿里云百炼 API Key' }}</small>
+        <input type="password" id="aiKey" class="mono" placeholder="sk-..." autocomplete="off"></label>
+    </div>
+    <div class="grid-2-even" style="margin-bottom:14px">
+      <label class="adv-label">账号所在站点
+        <select id="aiRegion">{% for k, label in ai_info.regions.items() %}<option value="{{ k }}" {{ 'selected' if ai_info.region == k }}>{{ label }}</option>{% endfor %}</select></label>
+      <label class="adv-label">文案模型 <small class="muted">留空用默认 {{ ai_info.default_text }}</small>
+        <input id="aiText" class="mono" value="{{ ai_info.text_model }}" placeholder="{{ ai_info.default_text }}" list="aiTextModels" autocomplete="off">
+        <datalist id="aiTextModels"><option value="qwen-plus"><option value="qwen3.7-plus"><option value="qwen3.8-flash"><option value="qwen-max"></datalist></label>
+    </div>
+    <div class="grid-2-even" style="margin-bottom:16px">
+      <label class="adv-label">配图模型 <small class="muted">留空用默认 {{ ai_info.default_image }}</small>
+        <input id="aiImage" class="mono" value="{{ ai_info.image_model }}" placeholder="{{ ai_info.default_image }}" list="aiImageModels" autocomplete="off">
+        <datalist id="aiImageModels"><option value="qwen-image-2.0"><option value="qwen-image-2.0-pro"><option value="qwen-image-3.0"><option value="wan2.7-image"></datalist></label>
+      <div></div>
+    </div>
+    <div class="submit-row">
+      <button type="button" class="btn btn-primary" id="aiSave">{{ icon('check') }}保存并检测</button>
+      {% if ai_info.has_key %}
+      <button type="button" class="btn" data-aitest="text">{{ icon('check') }}测试文字</button>
+      <button type="button" class="btn" data-aitest="image" title="会在你的阿里云账号上产生一张图的费用">{{ icon('image') }}测试配图</button>
+      <button type="button" class="btn btn-ghost" id="aiRemove">{{ icon('trash') }}删除 Key</button>
+      {% endif %}
+      <span class="form-msg" id="aiMsg"></span>
+    </div>
+    <p class="panel-note" style="margin:14px 0 0">Key 加密保存在我们的服务器上，只用来替你调用阿里云生成内容，随时可以在这里删除。参考费用：一次文案约几分钱，一张图约 2 毛，具体以阿里云账单为准。</p>
+  </div>
+</section>
+<script>
+(function () {
+  const $ = id => document.getElementById(id), msg = $('aiMsg');
+  const show = (d, okReload) => { msg.className = 'form-msg ' + (d.ok ? 'ok' : 'err'); msg.textContent = d.message || (d.ok ? '完成' : '失败'); if (d.ok && okReload) setTimeout(() => location.reload(), 900); };
+  $('aiSave').onclick = async e => {
+    const btn = e.currentTarget; btn.disabled = true; msg.className = 'form-msg'; msg.textContent = '正在检测这个 Key…';
+    const d = await postJSON('/api/ai/key', {key: $('aiKey').value, region: $('aiRegion').value, text_model: $('aiText').value, image_model: $('aiImage').value})
+      .catch(() => ({ok: false, message: '网络出错，请重试'}));
+    btn.disabled = false; show(d, true);
+  };
+  document.querySelectorAll('[data-aitest]').forEach(b => b.onclick = async () => {
+    b.disabled = true; msg.className = 'form-msg'; msg.textContent = '测试中，请稍等…';
+    const d = await postJSON('/api/ai/test', {kind: b.dataset.aitest}).catch(() => ({ok: false, message: '网络出错'}));
+    b.disabled = false; show(d, false);
+  });
+  const rm = $('aiRemove');
+  if (rm) rm.onclick = async () => {
+    if (!confirm('删除你保存的阿里云 Key？删除后不能再用「仿写」，已生成的内容不受影响。')) return;
+    show(await postJSON('/api/ai/key', {remove: true}), true);
+  };
+})();
+</script>

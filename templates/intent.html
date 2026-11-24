@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}我的意向词 - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">Intent Words</div>
+    <h1>我的意向词</h1>
+    <p class="lead-text">评论里出现下面这些词，就会被筛成线索。按你自己的生意来设：词越准，线索越干净。</p>
+  </div>
+  <div class="head-actions"><a class="btn" href="/leads">{{ icon('target') }}去看线索</a></div>
+</header>
+
+<div class="flash {{ 'ok' if custom else '' }}" style="margin-bottom:14px">
+  {% if custom %}现在用的是<b>你自己设置的意向词</b>。{% else %}现在用的是<b>系统默认意向词</b>，你改了任何一栏并保存，就变成你自己的。{% endif %}
+</div>
+
+<form method="post">
+  <input type="hidden" name="action" value="save">
+  <div class="grid-3" style="margin-bottom:14px">
+    {% for name, title, code, cls, val, hint in [
+        ('intent_strong', 'A 级 · 强意向', 'STRONG', 'is-a', strong, '直接表达想买 / 想合作 / 要联系方式，例如：怎么联系、想加盟、求链接'),
+        ('intent_medium', 'B 级 · 中意向', 'MEDIUM', 'is-b', medium, '在了解、比较、问价格，例如：多少钱、靠谱吗、有没有'),
+        ('intent_exclude', '排除词', 'EXCLUDE', 'is-x', exclude, '出现就不算线索，用来过滤同行广告，例如：私信我、招代理、厂家直销')] %}
+    <section class="panel wordbox {{ cls }}" style="margin-bottom:0">
+      <div class="panel-head">
+        <div class="panel-title"><span class="dot"></span>{{ title }} <span class="code">{{ code }}</span></div>
+        <span class="count" data-for="{{ name }}"></span>
+      </div>
+      <p class="panel-note" style="padding:12px 16px 0;margin:0">{{ hint }}</p>
+      <textarea name="{{ name }}" id="{{ name }}" class="mono" spellcheck="false" aria-label="{{ title }}">{{ val }}</textarea>
+    </section>
+    {% endfor %}
+  </div>
+  <p class="panel-note">一行一个词（用逗号分隔也行）。每栏最多 {{ MAX_WORDS }} 个词，单个词不超过 30 个字。A 级和 B 级至少要有一个词。</p>
+  <div class="submit-row" style="margin:14px 0 24px">
+    <button class="btn btn-primary btn-lg">{{ icon('check') }}保存我的意向词</button>
+  </div>
+</form>
+
+{% if custom %}
+<form method="post" onsubmit="return confirm('恢复成系统默认意向词？你现在设置的词会被清掉。')">
+  <input type="hidden" name="action" value="reset">
+  <button class="btn btn-ghost">{{ icon('refresh') }}恢复系统默认</button>
+</form>
+{% endif %}
+
+<section class="panel" style="margin-top:20px">
+  <div class="panel-head"><div class="panel-title">{{ icon('list') }}说明 <span class="code">NOTES</span></div></div>
+  <ul class="price-notes" style="border-top:0">
+    <li>保存后，<b>以后的采集</b>按你的意向词筛。</li>
+    <li>已经采到的评论，到「线索」页点「重新筛选」，会按新词再筛一遍，<b>不扣额度</b>。</li>
+    <li>某次采集想临时多加几个词，可以在「采集任务 → 高级选项 → 本次额外意向词」里填，只对那一次生效。</li>
+    <li>词太宽泛（比如"有没有""在哪"）会把很多普通评论也当成线索，线索多但不准；词太窄又会漏掉客户，可以先用一批任务试试再调。</li>
+  </ul>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('.count[data-for]').forEach(c => {
+  const ta = document.getElementById(c.dataset.for);
+  const upd = () => c.textContent = ta.value.split(/[\n,，]/).map(s => s.trim()).filter(Boolean).length + ' 词';
+  ta.addEventListener('input', upd); upd();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}作品库 - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">04 / Sources</div>
+    <h1>作品库</h1>
+    <p class="lead-text">抓过评论的作品。线索多的作品说明它的评论区是"鱼塘"，可以隔段时间再抓一次新评论。</p>
+  </div>
+</header>
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <select name="project" aria-label="项目" onchange="this.form.submit()"><option value="">全部项目</option>
+      {% for p in projects %}<option value="{{ p }}" {{ 'selected' if f.project == p }}>{{ p }}</option>{% endfor %}</select>
+    <select name="platform" aria-label="平台" onchange="this.form.submit()"><option value="">全部平台</option>
+      {% for k, lab in LABELS.items() %}<option value="{{ k }}" {{ 'selected' if f.platform == k }}>{{ lab }}</option>{% endfor %}</select>
+    <div class="seg seg-inline">
+      {% for k, label in [('recent', '最近抓取'), ('leads', '线索最多'), ('comments', '评论最多'), ('new', '最新发布')] %}
+      <label class="seg-item"><input type="radio" name="sort" value="{{ k }}" {{ 'checked' if sort == k }} onchange="this.form.submit()"><span>{{ label }}</span></label>
+      {% endfor %}
+    </div>
+  </form>
+  <div class="toolbar-foot"><span>SOURCES <b>{{ total }}</b>{% if pages > 1 %} · 第 {{ page }} / {{ pages }} 页{% endif %}</span><span>点封面打开原作品</span></div>
+</section>
+
+<div class="feed vfeed">
+  {% for v in videos %}
+  <article class="post-card {{ 'is-hot' if v.lead_a }}">
+    <a class="post-cover" href="{{ v.url or '#' }}" {% if v.url %}target="_blank" rel="noopener"{% endif %}>
+      <span class="poster platform-{{ v.platform }}"><i>{{ LABELS.get(v.platform, v.platform) }}</i><b>{{ (v.title or '（无标题）')[:42] }}</b></span>
+      {% if v.cover %}<img src="{{ imgp(v.cover) }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}
+      <span class="post-badges">{% if v.lead_a %}<span class="badge-new">A · {{ v.lead_a }}</span>{% endif %}</span>
+    </a>
+    <div class="post-body">
+      <a class="post-title" href="{{ v.url or '#' }}" {% if v.url %}target="_blank" rel="noopener"{% endif %}>{{ v.title or '（无标题）' }}</a>
+      <div class="post-meta">
+        <span class="platform platform-{{ v.platform }}">{{ v.author or LABELS.get(v.platform, v.platform) }}</span>
+        <span title="{{ v.published_at or '' }}">{{ ago(v.published_at) if v.published_at else (v.keyword or '') }}</span>
+      </div>
+      <div class="post-stats">
+        <span><i>评论</i><b>{{ wan(v.comment_count) }}</b></span>
+        <span><i>已抓</i><b>{{ v.scraped }}</b></span>
+        <span><i>线索</i><b class="tA">{{ v.lead_a }}</b>/<b class="tB">{{ v.lead_b }}</b></span>
+      </div>
+      <div class="post-actions">
+        {% if v.lead_a or v.lead_b %}<a class="btn-sm accent" href="/leads?video={{ v.id|urlencode }}">{{ icon('target') }}看线索</a>{% endif %}
+        <a class="btn-sm" href="/create?video={{ v.id|urlencode }}" title="用 AI 仿写这条内容">{{ icon('spark') }}仿写</a>
+        <a class="btn-sm" href="/ai-videos/new?video={{ v.id|urlencode }}" title="参考这条内容，用 AI 生成视频">{{ icon('film') }}做视频</a>
+        {% if not v.platform.startswith('wechat') %}
+        <button class="btn-sm" data-grab="{{ v.platform }}" data-id="{{ v.native_id }}" data-project="{{ v.project or '默认' }}" title="再抓一次这个作品的新评论">{{ icon('refresh') }}再抓评论</button>
+        {% endif %}
+      </div>
+    </div>
+  </article>
+  {% else %}
+  <p class="empty" style="grid-column:1/-1">还没有作品。去「采集任务」搜一个关键词，抓到的作品会出现在这里。</p>
+  {% endfor %}
+</div>
+
+{% if pages > 1 %}
+<nav class="pager" aria-label="分页">
+  {% if page > 1 %}<a class="btn" href="{{ qs(page=page - 1) }}">上一页</a>{% else %}<span class="btn is-off">上一页</span>{% endif %}
+  <span class="pager-info">{{ page }} / {{ pages }}</span>
+  {% if page < pages %}<a class="btn" href="{{ qs(page=page + 1) }}">下一页</a>{% else %}<span class="btn is-off">下一页</span>{% endif %}
+</nav>
+{% endif %}
+<div class="toast" id="toast"></div>
+{% endblock %}
+{% block scripts %}
+{% include "_post_actions.html" %}
+{% endblock %}

@@ -1,0 +1,58 @@
+{% set rows = leads if leads is defined else recent %}
+<div class="table-wrap">
+<table class="data-table lead-table">
+  <thead><tr>
+    <th>级</th><th>平台</th><th>用户</th><th>评论内容</th><th>来源</th>
+    <th>状态</th><th>微信</th><th>备注</th><th>私信</th>
+  </tr></thead>
+  <tbody>
+  {% for l in rows %}
+  <tr class="row-tier-{{ l.tier }}" data-lead="{{ l.id }}">
+    <td class="td-tier"><span class="tier tier-{{ l.tier }}">{{ l.tier }}</span></td>
+    <td class="td-pf"><span class="platform platform-{{ l.platform }}">{{ LABELS.get(l.platform, l.platform) }}</span>
+      {% if l.project %}<span class="cell-sub">{{ l.project }}</span>{% endif %}</td>
+    <td class="cell-user td-user">
+      {% if l.user_link %}<a href="{{ l.user_link }}" target="_blank" rel="noopener"><strong>{{ l.nickname }}</strong></a>
+      {% else %}<strong>{{ l.nickname }}</strong>{% endif %}
+      {% if l.user_handle %}<span class="cell-sub uid">@{{ l.user_handle }}</span>{% endif %}
+      {% if not l.user_link and l.platform == 'wechat_channels' %}<span class="cell-sub" title="视频号不提供评论者的主页链接。点「原作品」打开视频，在评论区按昵称找到这条评论回复。">无主页链接 · 按昵称找</span>{% endif %}
+      {% set region = l.province or (l.ip_region if l.ip_region and l.ip_region != '未知' else '') %}{% if region %}<span class="cell-sub">IP · {{ region }}</span>{% endif %}
+    </td>
+    <td class="comment-text td-text" {% if l.keywords %}data-hits="{{ l.keywords }}"{% endif %}>
+      <span class="ct">{{ l.text }}</span>
+      {% if l.keywords %}<span class="hits">命中 / {{ l.keywords.replace(',', ' · ') }}{% if l.is_reply %} · <span class="reply-tag">楼中楼回复</span>{% endif %}</span>{% endif %}
+      {% if l.commented_at %}<span class="hits" title="{{ l.commented_at }}">评论于 {{ ago(l.commented_at) }}</span>{% endif %}
+    </td>
+    <td class="video-source td-src">
+      <div class="src-row">
+        {% if l.video_cover %}<span class="thumb sm"><img src="{{ imgp(l.video_cover) }}" alt="" loading="lazy" onerror="this.remove()"></span>{% endif %}
+        <div class="src-text">
+          {% if l.keyword %}<span class="tag">{{ l.keyword }}</span><br>{% endif %}
+          {% if l.video_url %}<a href="{{ l.video_url }}" target="_blank" rel="noopener">{{ (l.video_title or '打开作品')[:36] }} {{ icon('external', 'ext') }}</a>
+          {% else %}{{ (l.video_title or '')[:36] }}{% endif %}
+        </div>
+      </div>
+    </td>
+    <td class="td-st">
+      <select class="status-select st-{{ l.status }}" aria-label="状态"
+              onchange="updateLead({{ l.id }}, 'status', this.value, this); this.className='status-select st-'+this.value">
+        {% for s in STATUSES %}<option value="{{ s }}" {{ 'selected' if l.status == s }}>{{ s }}</option>{% endfor %}
+      </select>
+    </td>
+    <td class="td-wx"><input class="inline-input mono" value="{{ l.wechat or '' }}" placeholder="微信号" aria-label="微信"
+               onchange="updateLead({{ l.id }}, 'wechat', this.value, this)"></td>
+    <td class="td-note"><input class="inline-input wide" value="{{ l.notes or '' }}" placeholder="添加备注" aria-label="备注"
+               onchange="updateLead({{ l.id }}, 'notes', this.value, this)"></td>
+    <td class="td-dm"><button type="button" class="btn-sm dm-btn{{ ' has' if l.dm_private }}" onclick="openDm(this)"
+        data-id="{{ l.id }}" data-nick="{{ l.nickname or '' }}" data-pf="{{ LABELS.get(l.platform, l.platform) }}" data-text="{{ l.text or '' }}"
+        data-link="{{ l.user_link or '' }}" data-url="{{ l.video_url or '' }}" data-pub="{{ l.dm_public or '' }}" data-priv="{{ l.dm_private or '' }}">
+        {{ icon('send') }}<span>{{ '话术' if l.dm_private else '生成话术' }}</span></button></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="9" class="empty">没有符合条件的线索</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% include "_dm_modal.html" %}

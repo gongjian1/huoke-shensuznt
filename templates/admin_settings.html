@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}系统设置 - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">Admin / Settings</div>
+    <h1>管理后台</h1>
+  </div>
+</header>
+{% include "_admin_tabs.html" %}
+
+<form method="post">
+  <div class="grid-main" style="margin-bottom:18px">
+    <section class="panel" style="margin-bottom:0">
+      <div class="panel-head">
+        <div class="panel-title">{{ icon('coin') }}收费标准 <span class="code">PRICING</span></div>
+        <span class="panel-meta">额度单位：条评论</span>
+      </div>
+      <div class="panel-body">
+        <p class="panel-note">额度的单位就是「条评论」：采集时每抓到 1 条<b>新</b>评论扣 1 条额度，重复的不扣。管理员自己采集不扣。套餐价格在「充值订单」页设置。</p>
+        <div class="grid-2-even" style="margin-bottom:16px">
+          <label class="adv-label">视频号 / 公众号 · 每条评论扣几条额度<input name="wechat_weight" id="pWechat" class="mono" value="{{ wechat_weight }}" inputmode="numeric"></label>
+          <label class="adv-label">自定义充值 · 1 元 = 多少条评论<input name="comments_per_yuan" id="pYuan" class="mono" value="{{ comments_per_yuan }}" inputmode="numeric"></label>
+        </div>
+        <label class="adv-label" style="margin-bottom:16px">对标账号 · 每次刷新扣多少条额度 <small class="muted">每 12 小时刷新一次 = 每天 2 次</small>
+          <input name="price_track" id="pTrack" class="mono" value="{{ price_track }}" inputmode="numeric"></label>
+        <div class="estimate" id="priceDemo"></div>
+        <p class="panel-note" style="margin:0">参考成本（数据接口费，按评论条数）：普通平台每 1000 条约 ¥3.5，视频号约 ¥5，对标账号每次刷新约 ¥0.04。</p>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-bottom:0">
+      <div class="panel-head"><div class="panel-title">{{ icon('user-plus') }}用户注册 <span class="code">SIGN-UP</span></div></div>
+      <div class="panel-body">
+        <div class="field">
+          <div class="field-label">注册方式</div>
+          <div class="seg seg-col">
+            {% for v, label, hint in [('approval', '需要审核', '用户注册后，你在后台点"通过"才能登录'),
+                                      ('open', '开放注册', '注册完直接能登录，没额度也用不了采集'),
+                                      ('closed', '关闭注册', '登录页不显示注册入口，只能你手动开通')] %}
+            <label class="seg-item"><input type="radio" name="register_mode" value="{{ v }}" {{ 'checked' if register_mode == v }}>
+              <span><b>{{ label }}</b><small>{{ hint }}</small></span></label>
+            {% endfor %}
+          </div>
+        </div>
+        <label class="adv-label">注册赠送评论额度（条） <small class="muted">给新用户试用，0 表示不送</small>
+          <input name="register_bonus" class="mono" value="{{ register_bonus }}" inputmode="numeric"></label>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" style="margin-bottom:18px">
+    <div class="panel-head">
+      <div class="panel-title">{{ icon('spark') }}AI 创作 · 默认模型 <span class="code">AI STUDIO</span></div>
+    </div>
+    <div class="panel-body">
+      <p class="panel-note">AI 仿写用的是<b>每个客户自己的阿里云 Key</b>（客户在「我的账户」里填），费用由阿里云向客户收取，不扣评论额度、不需要你配置 Key。这里只设「客户没单独选模型时用哪个」。</p>
+      <div class="grid-2-even">
+        <label class="adv-label">默认文案模型
+          <input name="ai_text_model" class="mono" value="{{ ai_text_model }}" list="textModels" autocomplete="off">
+          <datalist id="textModels"><option value="qwen-plus"><option value="qwen3.7-plus"><option value="qwen3.8-flash"><option value="qwen-max"></datalist></label>
+        <label class="adv-label">默认配图模型
+          <input name="ai_image_model" class="mono" value="{{ ai_image_model }}" list="imageModels" autocomplete="off">
+          <datalist id="imageModels"><option value="qwen-image-2.0"><option value="qwen-image-2.0-pro"><option value="qwen-image-3.0"><option value="wan2.7-image"></datalist></label>
+      </div>
+      <div class="grid-2-even" style="margin-top:14px">
+        <label class="adv-label">视频模型系列 <small class="muted">文生视频用「系列-t2v」、图生视频用「系列-i2v」，目前验证过 wan2.7</small>
+          <input name="ai_video_model" class="mono" value="{{ ai_video_model }}" autocomplete="off"></label>
+        <div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid-3" style="margin-bottom:18px">
+    {% for name, title, code, cls, val in [
+        ('intent_strong', 'A 级 · 强意向', 'STRONG', 'is-a', strong),
+        ('intent_medium', 'B 级 · 中意向', 'MEDIUM', 'is-b', medium),
+        ('intent_exclude', '排除词', 'EXCLUDE', 'is-x', exclude)] %}
+    <section class="panel wordbox {{ cls }}" style="margin-bottom:0">
+      <div class="panel-head">
+        <div class="panel-title"><span class="dot"></span>{{ title }} <span class="code">{{ code }}</span></div>
+        <span class="count" data-for="{{ name }}"></span>
+      </div>
+      <textarea name="{{ name }}" id="{{ name }}" class="mono" spellcheck="false" aria-label="{{ title }}">{{ val }}</textarea>
+    </section>
+    {% endfor %}
+  </div>
+  <p class="panel-note">这是<b>系统默认意向词</b>：评论里出现这些词就会被筛成线索，一行一个。你自己采集用的就是这份；客户没有自己设置过的，也用这份。客户可以在「我的意向词」里改成自己的，不用找你加。</p>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">{{ icon('key') }}数据接口 Key <span class="code">API</span></div></div>
+    <div class="panel-body">
+      <p class="panel-note">当前 <span class="mono">{{ masked_key or '未设置' }}</span> · 要换就填新的，不换留空。填作者发给你的接口 Key。</p>
+      <input type="text" name="api_key" class="mono" placeholder="粘贴新的 API Key" autocomplete="off" aria-label="API Key">
+      <p class="panel-note" style="margin-top:14px">接口地址 · 填作者给你的接口地址。</p>
+      <input type="text" name="api_base" class="mono" value="{{ api_base }}" placeholder="例如 https://api.example.com/gw" autocomplete="off" aria-label="接口地址">
+    </div>
+  </section>
+
+  <div class="save-bar">
+    <button class="btn btn-primary btn-lg">{{ icon('check') }}保存设置</button>
+    <span class="muted">价格、注册方式、意向词、API Key 一起保存</span>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+
+document.querySelectorAll('.count[data-for]').forEach(c => {
+  const ta = document.getElementById(c.dataset.for);
+  const upd = () => c.textContent = ta.value.split(/[\n,，]/).map(s => s.trim()).filter(Boolean).length + ' 词';
+  ta.addEventListener('input', upd); upd();
+});
+const demo = () => {
+  const w = parseInt(document.getElementById('pWechat').value) || 0, t = parseInt(document.getElementById('pTrack').value) || 0;
+  const y = parseInt(document.getElementById('pYuan').value) || 0;
+  document.getElementById('priceDemo').innerHTML =
+    `<span>筛选 1000 条评论扣</span><b>1,000</b><span>条（普通）</span><b>${(1000 * w).toLocaleString()}</b><span>条（微信）</span>` +
+    `<span class="sep"></span><span>追踪 1 个账号每月约</span><b>${(t * 2 * 30).toLocaleString()}</b><span>条</span>` +
+    `<span class="sep"></span><span>自定义充值 1000 条 ≈</span><b>${y ? +(1000 / y).toFixed(2) : '—'}</b><span>元</span>`;
+};
+['pWechat', 'pTrack', 'pYuan'].forEach(id => document.getElementById(id).addEventListener('input', demo)); demo();
+</script>
+{% endblock %}

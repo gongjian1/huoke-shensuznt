@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}额度流水 - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">Admin / Ledger</div>
+    <h1>管理后台</h1>
+  </div>
+</header>
+{% include "_admin_tabs.html" %}
+
+<section class="panel">
+  <form class="toolbar" method="get">
+    <select name="kind" aria-label="类型" onchange="this.form.submit()"><option value="">全部类型</option>
+      {% for k in kinds %}<option value="{{ k }}" {{ 'selected' if kind == k }}>{{ k }}</option>{% endfor %}</select>
+  </form>
+  <div class="toolbar-foot"><span>RECORDS <b>{{ rows|length }}</b></span><span>最近 500 条</span></div>
+</section>
+
+{% set show_user = true %}
+{% set show_operator = true %}
+{% include "_ledger_table.html" %}
+{% endblock %}

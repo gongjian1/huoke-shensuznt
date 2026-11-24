@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}充值订单 - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">Admin / Recharge</div>
+    <h1>管理后台</h1>
+  </div>
+</header>
+{% include "_admin_tabs.html" %}
+
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">{{ icon('wallet') }}待确认的付款 <span class="code">PENDING</span></div>
+    <span class="panel-meta">{{ pending|length }} 笔</span>
+  </div>
+  <p class="panel-note" style="padding:14px 18px 0;margin:0">先到微信 / 支付宝的收款记录里核对金额和付款人，确认收到了再点「确认到账」。实际收到的金额和订单不一样，可以直接改金额。</p>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>用户</th><th>付款备注</th><th>方式 · 时间</th><th class="r">实收金额 → 到账评论条数</th><th></th></tr></thead>
+    <tbody>
+      {% for o in pending %}
+      <tr>
+        <td><a href="/admin/users/{{ o.user_id }}" style="color:var(--text)">{{ o.nickname or o.phone }}</a><div class="muted mono">{{ o.phone }}</div></td>
+        <td>{{ o.payer_note }}</td>
+        <td class="nw">{{ o.method }}<div class="muted">{{ o.created_at[5:16] }}</div></td>
+        <td colspan="2">
+          <form method="post" class="order-form">
+            <input type="hidden" name="order_id" value="{{ o.id }}">
+            <span class="muted">¥</span><input name="amount" class="mono" value="{{ yuan(o.amount) }}" inputmode="decimal" aria-label="实收金额（元）" size="6">
+            <span class="muted">→</span>
+            <input name="credits" class="mono" value="{{ o.credits }}" inputmode="numeric" aria-label="到账评论条数" size="8"><span class="muted">条</span>
+            <button class="btn-sm" name="action" value="confirm">{{ icon('check') }}确认到账</button>
+            <input name="reject_note" placeholder="拒绝原因（可不填）" maxlength="60" aria-label="拒绝原因">
+            <button class="btn-sm danger" name="action" value="reject" onclick="return confirm('确定拒绝这笔？')">拒绝</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty">没有待确认的付款</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<form method="post" enctype="multipart/form-data" class="panel">
+  <input type="hidden" name="action" value="pay_settings">
+  <div class="panel-head"><div class="panel-title">{{ icon('coin') }}收款设置 <span class="code">PAYMENT</span></div></div>
+  <div class="panel-body">
+    <div class="grid-2-even" style="margin-bottom:16px">
+      {% for key, label in METHODS.items() %}
+      <div class="qr-set">
+        <div class="field-label">{{ label }}收款码 {% if pay.qr[key] %}<small>已上传</small>{% else %}<small>未上传</small>{% endif %}</div>
+        {% if pay.qr[key] %}<img class="qr-thumb" src="/pay-qr/{{ key }}?v={{ pay.qr_v[key] }}" alt="{{ label }}收款码">{% endif %}
+        <input type="file" name="qr_{{ key }}" accept="image/png,image/jpeg,image/webp" aria-label="上传{{ label }}收款码">
+        {% if pay.qr[key] %}<label class="check-line"><input type="checkbox" name="remove_{{ key }}"> 删除这张收款码</label>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <p class="panel-note">收款码是你自己的微信 / 支付宝「收款码」截图，PNG、JPG、WEBP 都行，2MB 以内。只有登录的用户能看到，没上传的那种付款方式不会显示。</p>
+
+    <div class="grid-2-even">
+      <label class="adv-label">充值套餐 <small class="muted">每行「付款金额（元） 到账条数」，最多 8 档，例如 45 5000</small>
+        <textarea name="recharge_packages" class="mono" rows="6" spellcheck="false" style="min-height:130px">{{ packages_text }}</textarea></label>
+      <div>
+        <label class="adv-label" style="margin-bottom:14px">联系方式 <small class="muted">显示在充值页，例如你的微信号</small>
+          <input name="recharge_contact" value="{{ pay.contact }}" maxlength="60" autocomplete="off"></label>
+        <label class="adv-label">补充说明 <small class="muted">可不填，显示在充值页「说明」里</small>
+          <textarea name="recharge_note" rows="3" maxlength="300">{{ pay.note }}</textarea></label>
+      </div>
+    </div>
+    <div class="submit-row" style="margin-top:16px"><button class="btn btn-primary">{{ icon('check') }}保存收款设置</button></div>
+  </div>
+</form>
+
+<section class="panel">
+  <div class="panel-head">
+    <div class="panel-title">{{ icon('receipt') }}处理记录 <span class="code">HISTORY</span></div>
+    <span class="panel-meta">最近 100 笔</span>
+  </div>
+  <div class="table-wrap">
+  <table class="data-table">
+    <thead><tr><th>用户</th><th>付款备注</th><th>方式</th><th class="r">金额</th><th class="r">到账条数</th><th>结果</th><th>处理时间</th></tr></thead>
+    <tbody>
+      {% for o in history %}
+      <tr>
+        <td><a href="/admin/users/{{ o.user_id }}" style="color:var(--text)">{{ o.nickname or o.phone }}</a></td>
+        <td>{{ o.payer_note }}</td>
+        <td>{{ o.method }}</td>
+        <td class="num r hi">¥{{ yuan(o.amount) }}</td>
+        <td class="num r">{{ pts(o.credits) if o.credits else '—' }}</td>
+        <td>{% if o.status == '已到账' %}<span class="badge">已到账</span>{% else %}<span class="badge badge-err">已拒绝</span> <span class="muted">{{ o.reject_note }}</span>{% endif %}</td>
+        <td class="nw muted">{{ (o.handled_at or '')[5:16] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty">还没有处理过的订单</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

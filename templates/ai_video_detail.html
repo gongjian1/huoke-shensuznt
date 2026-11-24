@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}AI 视频 #{{ v.id }} - 获客系统{% endblock %}
+{% block content %}
+{% set live = v.status == '生成中' %}
+<header class="page-head">
+  <div>
+    <div class="kicker">AI Studio / Video #{{ v.id }} · {{ '图生视频' if v.mode == 'i2v' else '文生视频' }}</div>
+    <h1>{{ '正在生成视频…' if live else ('AI 视频' if v.status == '完成' else '生成失败') }}</h1>
+  </div>
+  <div class="head-actions">
+    <a class="btn" href="/ai-videos">{{ icon('play') }}我的视频</a>
+    {% if not live %}
+    <button class="btn" id="redo" title="用同样的设置再生成一条">{{ icon('refresh') }}再生成一条</button>
+    <button class="btn" id="del">{{ icon('trash') }}删除</button>
+    {% endif %}
+  </div>
+</header>
+
+{% if live %}
+<section class="panel live-box">
+  <div class="panel-body">
+    <div class="live-row"><span class="live-ic">{{ icon('spark', 'spin') }}</span>
+      <div><b id="liveText">{{ v.progress or 'AI 正在准备…' }}</b>
+        <div class="muted" style="font-size:12.5px">页面会自动刷新，你也可以先离开，完成后在「我的视频」里看。</div></div></div>
+  </div>
+</section>
+{% elif v.status == '失败' %}
+<div class="flash err">{{ v.error or '生成失败，请重试' }}</div>
+{% endif %}
+
+<div class="grid-main" style="margin-bottom:18px">
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">{{ icon('play') }}视频 <span class="code">PLAYER</span></div>
+      {% if v.video_file %}<span class="panel-meta">{{ '%.1f'|format(v.size_bytes / 1048576) }} MB</span>{% endif %}
+    </div>
+    <div class="panel-body">
+      {% if v.video_file %}
+      <video class="vplayer" controls playsinline preload="metadata" src="/media/{{ v.video_file }}"></video>
+      <div class="submit-row" style="margin-top:14px">
+        <a class="btn btn-primary" href="/media/{{ v.video_file }}" download="AI视频{{ v.id }}.mp4">{{ icon('download') }}下载视频</a>
+      </div>
+      {% else %}
+      <div class="vplaceholder"><span>{{ '视频生成中…' if live else '没有视频' }}</span></div>
+      {% endif %}
+    </div>
+  </section>
+
+  <div class="stack" style="margin-bottom:0">
+    <section class="panel" style="margin-bottom:0">
+      <div class="panel-head"><div class="panel-title">{{ icon('list') }}设置 <span class="code">SETTINGS</span></div></div>
+      <div class="panel-body">
+        <p class="panel-note" style="margin:0 0 12px"><b style="color:var(--text-2)">描述：</b>{{ v.prompt }}</p>
+        <table class="data-table compact"><tbody>
+          <tr><td class="muted">时长</td><td class="num r">{{ v.duration }} 秒</td></tr>
+          <tr><td class="muted">清晰度</td><td class="num r">{{ v.resolution }}</td></tr>
+          <tr><td class="muted">比例</td><td class="num r">{{ RATIOS.get(v.ratio, v.ratio) if v.mode == 't2v' else '跟随首帧图' }}</td></tr>
+          <tr><td class="muted">模型</td><td class="num r">{{ v.model or '—' }}</td></tr>
+          <tr><td class="muted">估算费用</td><td class="num r">约 ¥{{ est }}</td></tr>
+        </tbody></table>
+        {% if v.first_frame %}
+        <div class="field-label" style="margin:14px 0 6px">首帧图</div>
+        <img class="frame-thumb" src="/media/{{ v.first_frame }}" alt="首帧" loading="lazy">
+        {% endif %}
+        <p class="panel-note" style="margin:12px 0 0">费用由你的阿里云账号结算，以阿里云账单为准。{% if v.creation_id %}<a href="/creations/{{ v.creation_id }}" style="color:var(--lime);margin-left:6px">来自图文创作 #{{ v.creation_id }}</a>{% endif %}</p>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+{% endblock %}
+{% block scripts %}
+{% set live = v.status == '生成中' %}
+<script>
+const $ = id => document.getElementById(id);
+const VID = {{ v.id }};
+function toast(text, ok) {
+  const t = $('toast'); t.textContent = text; t.className = 'toast show ' + (ok ? 'ok' : 'err');
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', 2600);
+}
+{% if live %}
+(async function poll() {
+  try {
+    const d = await (await fetch(`/api/ai-videos/${VID}`)).json();
+    if ($('liveText') && d.progress) $('liveText').textContent = d.progress;
+    if (d.status !== '生成中') { location.reload(); return; }
+  } catch (e) {}
+  setTimeout(poll, 4000);
+})();
+{% else %}
+$('redo').onclick = async e => {
+  if (!confirm('用同样的设置再生成一条？会在你的阿里云账号上再产生一次费用。')) return;
+  e.currentTarget.disabled = true;
+  const d = await postJSON(`/api/ai-videos/${VID}/redo`);
+  if (d.ok) location.href = `/ai-videos/${d.id}`; else { e.currentTarget.disabled = false; toast(d.message || '失败', false); }
+};
+$('del').onclick = async () => {
+  if (!confirm('删除这条视频？')) return;
+  const d = await postJSON(`/api/ai-videos/${VID}/delete`);
+  if (d.ok) location.href = '/ai-videos'; else toast(d.message || '删除失败', false);
+};
+{% endif %}
+</script>
+{% endblock %}

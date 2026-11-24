@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}新建视频 - 获客系统{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <div class="kicker">AI Studio / New video</div>
+    <h1>新建视频</h1>
+    <p class="lead-text">描述画面，或者选一张配图当第一帧让它动起来。生成大约要 30 秒到 2 分钟。</p>
+  </div>
+  <div class="head-actions"><a class="btn" href="/ai-videos">{{ icon('play') }}我的视频</a></div>
+</header>
+{% include "_ai_tabs.html" %}
+
+{% if not ai_ready %}
+<div class="flash err">先填一下你自己的阿里云 API Key，才能生成视频（只需要填一次）。</div>
+{% include "_ai_key_form.html" %}
+{% endif %}
+
+<div class="grid-main" style="margin-bottom:18px">
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">{{ icon('play') }}视频设置 <span class="code">BRIEF</span></div></div>
+    <div class="panel-body">
+      {% if creation and creation.images %}
+      <div class="field">
+        <div class="field-label"><span class="step">01</span>第一帧 <small>选一张配图，视频会从这张图开始动起来；也可以不用，纯文字生成</small></div>
+        <div class="frame-pick">
+          {% for name in creation.images %}
+          <label class="frame"><input type="radio" name="frame" value="{{ loop.index0 }}" {{ 'checked' if (first_index if first_index is not none else 0) == loop.index0 }}>
+            <span><img src="/media/{{ name }}" alt="配图 {{ loop.index }}"></span></label>
+          {% endfor %}
+          <label class="frame frame-none"><input type="radio" name="frame" value="-1"><span><b>不用首帧</b><small>纯文字生成</small></span></label>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="field">
+        <label class="field-label" for="prompt"><span class="step">{{ '02' if creation and creation.images else '01' }}</span>视频描述 <small id="promptHint">写清楚主体、动作、镜头和氛围</small></label>
+        {% if ref %}<p class="panel-note" style="margin:0 0 8px">已带入参考作品「{{ ref }}」当草稿，只借鉴选题，<b>请按你自己的业务改成画面描述</b>。</p>{% endif %}
+        <textarea id="prompt" rows="5" maxlength="1500" placeholder="例如：一台白色的家用充电桩挂在整洁的车库墙上，一只手把充电枪缓缓插入白色新能源汽车的充电口，指示灯亮起，镜头缓慢推近，写实风格，柔和自然光"></textarea>
+      </div>
+
+      <div class="field">
+        <div class="field-label"><span class="step">{{ '03' if creation and creation.images else '02' }}</span>时长</div>
+        <div class="seg">
+          {% for d in DURATIONS %}<label class="seg-item"><input type="radio" name="duration" value="{{ d }}" {{ 'checked' if d == 5 }}><span><b>{{ d }} 秒</b></span></label>{% endfor %}
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label"><span class="step">{{ '04' if creation and creation.images else '03' }}</span>清晰度和比例</div>
+        <div class="seg">
+          {% for r in RESOLUTIONS %}<label class="seg-item"><input type="radio" name="resolution" value="{{ r }}" {{ 'checked' if r == '720P' }}><span><b>{{ r }}</b></span></label>{% endfor %}
+        </div>
+        <div class="seg" style="margin-top:8px" id="ratioSeg">
+          {% for key, label in RATIOS.items() %}<label class="seg-item"><input type="radio" name="ratio" value="{{ key }}" {{ 'checked' if key == '9:16' }}><span><b>{{ label }}</b></span></label>{% endfor %}
+        </div>
+        <p class="panel-note" id="ratioNote" style="margin:8px 0 0" hidden>用配图当第一帧时，视频比例会跟着这张图走。</p>
+      </div>
+
+      <div class="estimate" id="estimate"></div>
+      <div class="submit-row">
+        <button class="btn btn-primary btn-lg" id="go" {{ 'disabled' if not ai_ready }}>{{ icon('play') }}开始生成</button>
+        <span class="form-msg" id="msg"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">{{ icon('list') }}说明 <span class="code">NOTES</span></div></div>
+    <ul class="price-notes" style="border-top:0">
+      <li>费用由<b>你自己的阿里云账号</b>按生成的秒数结算，我们不加价、不扣评论额度。左边的金额只是估算，<b>以阿里云账单为准</b>。</li>
+      <li>时间越长、清晰度越高越贵，<b>建议先用 720P、2～5 秒试效果</b>，满意再做长的。</li>
+      <li>生成需要 30 秒到 2 分钟，可以先离开，完成后在「我的视频」里看。</li>
+      <li>生成的视频保存在你的账户里（最多 {{ 30 }} 条），可以播放和下载。</li>
+      <li>如果提示内容没通过审核，换一种描述再试。</li>
+    </ul>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const $ = id => document.getElementById(id);
+const IMAGES = {{ (creation.images if creation else [])|tojson }}, PROMPTS = {{ (creation.prompts if creation else [])|tojson }};
+const TITLE = {{ (creation.title if creation else ref)|tojson }}, CREATION = {{ (creation.id if creation else 0)|tojson }};
+const PRICE = {{ PRICE|tojson }};
+const pick = name => { const e = document.querySelector(`input[name=${name}]:checked`); return e ? e.value : null; };
+let promptTouched = false;
+$('prompt').addEventListener('input', () => promptTouched = true);
+
+function frameIndex() { const v = pick('frame'); return v === null ? -1 : +v; }
+function syncPrompt() {
+  if (promptTouched) return;
+  const i = frameIndex();
+  $('prompt').value = i >= 0 ? '镜头缓慢推近，画面自然流畅，光线柔和' : ((PROMPTS[0] || TITLE || '') + (PROMPTS[0] || TITLE ? '，镜头缓慢推近，写实风格，画面自然流畅' : ''));
+  $('promptHint').textContent = i >= 0 ? '图片已经决定了画面，这里只需要描述怎么动、镜头怎么走' : '写清楚主体、动作、镜头和氛围';
+}
+function refresh() {
+  const d = +pick('duration'), r = pick('resolution'), withFrame = frameIndex() >= 0;
+  const cny = Math.round(PRICE[r] * d * 10) / 10;
+  $('estimate').innerHTML = `<span>${d} 秒 · ${r}</span><span class="sep"></span><span>约</span><b>¥${cny}</b><span>· 由你的阿里云账号结算，以账单为准</span>`;
+  document.querySelectorAll('#ratioSeg input').forEach(i => i.disabled = withFrame);
+  $('ratioSeg').style.opacity = withFrame ? .4 : 1;
+  $('ratioNote').hidden = !withFrame;
+}
+document.querySelectorAll('input[name=frame]').forEach(i => i.addEventListener('change', () => { syncPrompt(); refresh(); }));
+['duration', 'resolution'].forEach(n => document.querySelectorAll(`input[name=${n}]`).forEach(i => i.addEventListener('change', refresh)));
+syncPrompt(); refresh();
+
+$('go').onclick = async e => {
+  const btn = e.currentTarget, msg = $('msg');
+  btn.disabled = true; msg.className = 'form-msg'; msg.textContent = '';
+  const i = frameIndex();
+  const d = await postJSON('/api/ai-videos', {
+    creation: CREATION || null, image: i >= 0 ? i : -1, prompt: $('prompt').value,
+    duration: pick('duration'), resolution: pick('resolution'), ratio: pick('ratio'),
+  }).catch(() => ({ok: false, message: '网络出错，请重试'}));
+  if (d.ok) { location.href = `/ai-videos/${d.id}`; return; }
+  btn.disabled = false; msg.className = 'form-msg err'; msg.textContent = d.message || '生成失败，请重试';
+};
+</script>
+{% endblock %}
